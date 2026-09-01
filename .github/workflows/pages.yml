@@ -38,7 +38,15 @@ jobs:
 
       - name: シナリオ定義の検証
         working-directory: web
-        run: npm run validate:scenarios
+        run: npm run validate:scenarios:strict
+
+      - name: E2E用Chromiumをインストール
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: ブラウザスモークテスト
+        working-directory: web
+        run: npm run test:e2e
 
       - name: 配信パスを決める
         id: base

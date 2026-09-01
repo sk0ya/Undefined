@@ -130,7 +130,10 @@ npm install
 npm run dev     # http://localhost:5173/  ( /#host でホスト画面 )
 npm test        # ゲームロジックのテスト
 npm run build   # dist/ に静的ファイルを出力
+npm run test:e2e # Chromiumでhost/プレイヤーの主要フローを確認
 ```
+
+ブラウザテストを初めて実行する場合は、先に `npx playwright install chromium` を実行してください。
 
 構成:
 
