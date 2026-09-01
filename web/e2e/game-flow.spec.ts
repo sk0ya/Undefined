@@ -37,6 +37,8 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       expect(
         await playerOne.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       ).toBe(true);
+      await playerTwo.reload();
+      await expect(playerTwo.locator(".phase-banner h2")).toHaveText("ヒアリング・議論", { timeout: 30_000 });
       await playerOne
         .locator(".discussion-action-hub")
         .getByRole("button", { name: /📝 要求カード/ })

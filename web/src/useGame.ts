@@ -40,6 +40,7 @@ export interface GameConn {
 const TOKEN_KEY = "reqgame_token";
 const NAME_KEY = "reqgame_name";
 const ROOM_KEY = "reqgame_room";
+const PLAYER_ROOM_KEY = "reqgame_player_room";
 const SAVED_GAME_KEY = "reqgame_hostgame";
 
 export function savedName(): string {
@@ -49,6 +50,11 @@ export function savedName(): string {
 /** 前回ホストしたルームコード。リロードしてもプレイヤーが繋ぎ直せるように保持する */
 export function savedRoomCode(): string {
   return localStorage.getItem(ROOM_KEY) ?? "";
+}
+
+/** 前回プレイヤーとして参加したルーム。同じURLの再読み込み時だけ自動復帰に使う */
+export function savedPlayerRoomCode(): string {
+  return localStorage.getItem(PLAYER_ROOM_KEY) ?? "";
 }
 
 // ---- プレイヤー ----
@@ -89,6 +95,7 @@ export function usePlayerGame(roomCode: string): GameConn {
 
   const join = useCallback((opts: { name?: string }) => {
     if (opts.name) localStorage.setItem(NAME_KEY, opts.name);
+    localStorage.setItem(PLAYER_ROOM_KEY, roomCode);
     sessionRef.current?.join({
       type: "join",
       name: opts.name ?? "",

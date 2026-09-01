@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import PlayerApp from "./PlayerApp";
 import HostApp from "./HostApp";
-import { parseRoute, useHostGame, usePlayerGame } from "./useGame";
+import { parseRoute, savedName, savedPlayerRoomCode, useHostGame, usePlayerGame } from "./useGame";
 
 /**
  * ルーティングはハッシュのみ。GitHub Pages はリポジトリ名のサブパス配下で
@@ -29,7 +29,11 @@ function HostRoot() {
 
 function PlayerRoot({ initialCode }: { initialCode: string }) {
   const [code, setCode] = useState(initialCode);
-  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [pendingName, setPendingName] = useState<string | null>(() => {
+    if (!initialCode || savedPlayerRoomCode() !== initialCode) return null;
+    const name = savedName().trim();
+    return name || null;
+  });
   const conn = usePlayerGame(code);
 
   // 接続が開いてから参加を送る(コード入力と同時に押せるようにするため)
