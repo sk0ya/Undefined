@@ -11,6 +11,7 @@
     "validate:scenarios": "node scripts/validate-scenarios.mjs",
     "validate:scenarios:strict": "node scripts/validate-scenarios.mjs --strict",
     "codex:bridge": "node scripts/codex-bridge.mjs",
+    "host": "node scripts/host.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
