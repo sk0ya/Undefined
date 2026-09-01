@@ -129,7 +129,9 @@ function JoinScreen({
             if (ready) onJoin(code, name.trim());
           }}
         >
+          <label className="sr-only" htmlFor="join-room-code">ルームコード</label>
           <input
+            id="join-room-code"
             autoFocus={!initialCode}
             className="room-input"
             placeholder="ルームコード"
@@ -141,7 +143,9 @@ function JoinScreen({
             spellCheck={false}
             onChange={(e) => setCode(normalizeRoomCode(e.target.value))}
           />
+          <label className="sr-only" htmlFor="join-player-name">あなたの名前</label>
           <input
+            id="join-player-name"
             autoFocus={!!initialCode}
             placeholder="あなたの名前(ニックネーム可)"
             value={name}
@@ -414,14 +418,17 @@ function ProposalWorkspace({
           自分のロールとして必要な要件を提案しましょう。口頭での議論と併用してOKです。
         </p>
         <div className="form-row">
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+          <label className="sr-only" htmlFor="proposal-category">要求カードのカテゴリ</label>
+          <select id="proposal-category" value={category} onChange={(e) => setCategory(e.target.value)}>
             {cats.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
           </select>
+          <label className="sr-only" htmlFor="proposal-title">要求カードのタイトル</label>
           <input
+            id="proposal-title"
             placeholder="要求のタイトル(例: ロット単位のトレーサビリティ)"
             value={title}
             maxLength={60}
@@ -429,7 +436,9 @@ function ProposalWorkspace({
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
         </div>
+        <label className="sr-only" htmlFor="proposal-description">要求カードの詳細・理由</label>
         <textarea
+          id="proposal-description"
           placeholder="詳細・理由(任意)。なぜ必要か、どこまでやるかを書くと採点で有利です"
           value={description}
           rows={3}
@@ -533,16 +542,19 @@ function EditForm({
   return (
     <div className="edit-form">
       <div className="form-row">
-        <select value={cat} onChange={(e) => setCat(e.target.value)}>
+        <label className="sr-only" htmlFor={`proposal-edit-category-${p.id}`}>要求カードのカテゴリ</label>
+        <select id={`proposal-edit-category-${p.id}`} value={cat} onChange={(e) => setCat(e.target.value)}>
           {cats.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
         </select>
-        <input value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
+        <label className="sr-only" htmlFor={`proposal-edit-title-${p.id}`}>要求カードのタイトル</label>
+        <input id={`proposal-edit-title-${p.id}`} value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
       </div>
-      <textarea value={desc} rows={2} maxLength={500} onChange={(e) => setDesc(e.target.value)} />
+      <label className="sr-only" htmlFor={`proposal-edit-description-${p.id}`}>要求カードの詳細</label>
+      <textarea id={`proposal-edit-description-${p.id}`} value={desc} rows={2} maxLength={500} onChange={(e) => setDesc(e.target.value)} />
       <div className="proposal-actions">
         <button className="small-btn" onClick={() => title.trim() && onSave(cat, title.trim(), desc)}>
           保存

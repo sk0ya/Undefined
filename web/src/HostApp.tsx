@@ -368,6 +368,7 @@ function TimerControls({
         </button>
       ))}
       <input
+        aria-label="タイマーの設定時間(分)"
         type="number"
         min={1}
         max={60}
@@ -733,6 +734,7 @@ function AISettings({ conn }: { conn: HostConn }) {
               </p>
               <div className="form-row">
                 <input
+                  aria-label="CodexブリッジURL"
                   placeholder="CodexブリッジURL"
                   value={draft.codexBridgeUrl}
                   onChange={(e) => {
@@ -755,6 +757,7 @@ function AISettings({ conn }: { conn: HostConn }) {
                 キーは<strong>このブラウザにだけ</strong>保存され、APIへ直接送られます。プレイヤーには渡りません。
               </p>
               <input
+                aria-label="APIキー"
                 type="password"
                 placeholder="APIキー(sk-...)"
                 value={draft.apiKey}
@@ -762,11 +765,13 @@ function AISettings({ conn }: { conn: HostConn }) {
               />
               <div className="form-row">
                 <input
+                  aria-label="APIベースURL"
                   placeholder="ベースURL"
                   value={draft.baseUrl}
                   onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
                 />
                 <input
+                  aria-label="AIモデル名"
                   placeholder="モデル名"
                   value={draft.model}
                   onChange={(e) => setDraft({ ...draft, model: e.target.value })}
@@ -1037,11 +1042,13 @@ function AnnounceForm({
         議論に揺さぶりをかける「クライアントからの追加情報」を全員に配信します。
       </p>
       <input
+        aria-label="イベントのタイトル"
         placeholder="タイトル(例: 社長からの緊急連絡)"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
       />
       <textarea
+        aria-label="イベントの本文"
         placeholder="本文"
         rows={3}
         value={body}
@@ -1150,7 +1157,7 @@ function NPCReference({ conn, state }: { conn: HostConn; state: Snapshot }) {
       <details className="npc-detail ai-ask">
         <summary>🤖 AIにNPCとして回答させる</summary>
         <div className="form-row">
-          <select value={npcId} onChange={(e) => setNpcId(e.target.value)}>
+          <select aria-label="回答するNPC" value={npcId} onChange={(e) => setNpcId(e.target.value)}>
             {npcs.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.icon} {n.name}
@@ -1158,6 +1165,7 @@ function NPCReference({ conn, state }: { conn: HostConn; state: Snapshot }) {
             ))}
           </select>
           <input
+            aria-label="NPCへ送る質問"
             placeholder="プレイヤーからの質問を入力"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
@@ -1297,6 +1305,7 @@ function AnswerRow({
       ) : (
         <>
           <textarea
+            aria-label={`${q.npcName}としての回答`}
             rows={2}
             placeholder={`${q.npcName}としての回答(聞かれたことだけ答える)`}
             value={answer}
@@ -1547,6 +1556,7 @@ function AIPanel({
       )}
       {kinds.some((k) => KIND_META[k].inputLabel) && (
         <input
+          aria-label={KIND_META[kinds.find((k) => KIND_META[k].inputLabel)!].inputLabel}
           placeholder={KIND_META[kinds.find((k) => KIND_META[k].inputLabel)!].inputLabel}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -1615,11 +1625,12 @@ function AIPanel({
                 >
                   {copied ? "✓ コピー済" : "📋 プロンプトをコピー"}
                 </button>
-                <textarea readOnly rows={6} value={result.prompt} />
+                <textarea aria-label="AIへ送ったプロンプト" readOnly rows={6} value={result.prompt} />
               </div>
               {result.kind !== "advice" && (
                 <>
                   <textarea
+                    aria-label="AIの回答(JSON)"
                     rows={4}
                     placeholder="AIの回答(JSON)をここに貼り付け"
                     value={pasted}

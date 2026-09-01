@@ -379,7 +379,9 @@ export function QuestionBoard({
           ))}
         </div>
         {npc && <p className="npc-opening prewrap">💬 {npc.opening}</p>}
+        <label className="sr-only" htmlFor="player-question-input">NPCへの質問</label>
         <textarea
+          id="player-question-input"
           rows={2}
           maxLength={300}
           placeholder={`${npc?.name ?? "NPC"}さんへの質問(例: 予約が重なったとき、いまは誰がどう捌いていますか?)`}
@@ -1248,7 +1250,9 @@ export function DocEditor({
                 </button>
               </div>
             )}
+            <label className="sr-only" htmlFor={`doc-section-${s.id}`}>{s.title}</label>
             <textarea
+              id={`doc-section-${s.id}`}
               rows={4}
               placeholder={tmpl.find((t) => t.id === s.id)?.placeholder ?? ""}
               value={drafts[s.id] ?? s.content}
