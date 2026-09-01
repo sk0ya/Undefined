@@ -126,11 +126,14 @@ test.describe("ゲームの主要ブラウザフロー", () => {
   test("hostはCodexブリッジの接続状態を画面で確認できる", async ({ browser, baseURL }) => {
     const context = await browser.newContext();
     const host = await context.newPage();
+    let bridgeOnline = false;
     await host.route("http://127.0.0.1:8787/healthz", (route) =>
       route.fulfill({
-        status: 200,
+        status: bridgeOnline ? 200 : 503,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, service: "reqgame-codex-bridge" }),
+        body: bridgeOnline
+          ? JSON.stringify({ ok: true, service: "reqgame-codex-bridge" })
+          : JSON.stringify({ ok: false, service: "reqgame-codex-bridge" }),
       }),
     );
 
@@ -138,6 +141,9 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.goto(`${baseURL}/#host`);
       await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
       await host.getByRole("button", { name: "接続設定" }).click();
+      await host.getByRole("button", { name: "接続確認" }).click();
+      await expect(host.getByText("⚠ Codexブリッジの応答が異常です(503)")).toBeVisible();
+      bridgeOnline = true;
       await host.getByRole("button", { name: "接続確認" }).click();
       await expect(host.getByText("✓ Codexブリッジに接続できます")).toBeVisible();
     } finally {
