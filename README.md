@@ -81,6 +81,8 @@ npm run host
 
 `npm run host` はゲーム画面(`http://localhost:5173`)とCodexブリッジ(`127.0.0.1:8787`)を同時に起動します。そのままホスト画面の「🔑 AI設定」で `Codex(host PC)` を選び、「接続確認」が成功すれば、採点・NPC回答・イベント生成・ファシリ補助を画面から直接Codexへ依頼できます。Codexは一時ディレクトリ・読み取り専用・120秒タイムアウトで実行します。停止は `Ctrl+C` です。
 
+当日の進行手順は [host向け進行ガイド](docs/HOST_GUIDE.md) にまとめています。
+
 GitHub Pagesの公開画面を使う場合も、ブリッジを実行している同じhost PCのブラウザでゲームを開いてください。公開Originを限定する場合(PowerShell)は、`$env:REQGAME_CODEX_ORIGIN = "https://<ユーザー名>.github.io"` を設定してから `npm run codex:bridge` を起動します。公開画面ではローカルのViteは不要です。ブリッジを起動できない場合は、従来のOpenAI互換APIまたは手動モードへ切り替えられます。
 
 ホスト画面の「🔑 AI設定」で `OpenAI互換API` を選んでAPIキーを入れると、自動モードになります。Codexを使う場合は、上のローカルブリッジ方式を選べます:
