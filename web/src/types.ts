@@ -23,7 +23,16 @@ export interface Player {
   roleId?: string;
   roomId?: string;
   connected: boolean;
+  ready: boolean;
 }
+
+/** 議論中の温度感を示すリアクション(サーバーの ReactionEmojis と同じ順) */
+export const REACTIONS: { emoji: string; label: string }[] = [
+  { emoji: "👍", label: "賛成" },
+  { emoji: "🔥", label: "重要" },
+  { emoji: "❓", label: "詳しく" },
+  { emoji: "⚠️", label: "懸念" },
+];
 
 export interface SecretCondition {
   id: string;
@@ -97,6 +106,54 @@ export interface TitleAwardDef {
   description: string;
 }
 
+// ---- シナリオ定義(秘密を含む完全版。ホストのブラウザのみが保持する) ----
+
+export interface Role {
+  id: string;
+  name: string;
+  title: string;
+  icon: string;
+  publicProfile: string;
+  privateBrief: string;
+  secretConditions: SecretCondition[];
+}
+
+export interface NPC {
+  id: string;
+  name: string;
+  title: string;
+  icon: string;
+  opening: string;
+  knowledge: NPCKnowledge[];
+}
+
+/**
+ * scenarios/*.json をそのまま写した型。privateBrief・secretConditions・
+ * npcs[].knowledge といったネタバレを含むので、プレイヤーへは必ず
+ * buildSnapshot を通してフィルタしたものだけを送ること。
+ */
+export interface Scenario {
+  id: string;
+  type?: string;
+  title: string;
+  tagline: string;
+  clientName: string;
+  industry: string;
+  background: string;
+  publicGoal: string;
+  constraints: string[];
+  categories: string[];
+  docTemplate: DocTemplateSection[];
+  roles: Role[];
+  eventIdeas?: string[];
+  npcs?: NPC[];
+  hiddenRequirements?: HiddenRequirement[];
+  scriptedEvents?: ScriptedEvent[];
+  testCases?: TestCase[];
+  rubric?: RubricItem[];
+  titles?: TitleAwardDef[];
+}
+
 export interface ScenarioView {
   id: string;
   type?: string; // "" | "stakeholder" | "hearing"
@@ -133,12 +190,38 @@ export interface ProposalView {
   votedCount: number;
   myVote?: "approve" | "reject";
   votesVisible: boolean;
+  reactions?: Record<string, number>;
+  myReaction?: string;
+  /** 投票フェーズ中、まだ投票していないルームメンバーの名前 */
+  notVoted?: string[];
+}
+
+/** ヒアリング型シナリオでの1問1答 */
+export interface QuestionView {
+  id: string;
+  npcId: string;
+  npcName: string;
+  npcIcon: string;
+  askerId: string;
+  askerName: string;
+  askerRole: string;
+  text: string;
+  answer?: string;
+  source?: "host" | "ai";
+  pending: boolean;
+  askedAtMs: number;
+  roomId?: string;
+  roomName?: string;
+  isMine?: boolean;
+  answeredMs?: number;
 }
 
 export interface DocSection {
   id: string;
   title: string;
   content: string;
+  editedBy?: string;
+  editedAtMs?: number;
 }
 
 export interface Announcement {
@@ -152,6 +235,7 @@ export interface TimerState {
   running: boolean;
   endsAtMs: number;
   remainingMs: number;
+  totalMs: number;
 }
 
 export interface AxisScore {
@@ -224,6 +308,7 @@ export interface RoomView {
   name: string;
   players: Player[];
   proposals: ProposalView[];
+  questions: QuestionView[];
   doc: DocSection[];
   score?: ScoreResult;
 }
@@ -245,6 +330,7 @@ export interface Snapshot {
   players: Player[];
   scenario?: ScenarioView;
   proposals: ProposalView[];
+  questions: QuestionView[];
   doc: DocSection[];
   announcements: Announcement[];
   timer: TimerState;
@@ -253,6 +339,10 @@ export interface Snapshot {
   leaderboard?: LeaderboardEntry[];
   scenarios?: ScenarioSummary[];
   serverTimeMs: number;
+  aiEnabled: boolean;
+  autoAnswer: boolean;
+  /** ホスト専用: 全ルームの未回答質問(古い順) */
+  askQueue?: QuestionView[];
 }
 
 export function phaseIndex(p: Phase): number {

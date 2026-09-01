@@ -1,14 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// dev時は go サーバー(:8080)にWS/APIをプロキシする
+// GitHub Pages はリポジトリ名のサブパス配下で配信されるため、base を合わせる。
+// Actions から VITE_BASE を渡す。ローカル開発や独自ドメインでは "/" のまま。
+const base = process.env.VITE_BASE ?? "/";
+
 export default defineConfig({
+  base,
   plugins: [react()],
   server: {
-    proxy: {
-      "/ws": { target: "ws://localhost:8080", ws: true },
-      "/api": { target: "http://localhost:8080" },
-    },
+    // シナリオJSONをリポジトリ直下の scenarios/ から読むため、親を許可する
+    fs: { allow: [".."] },
   },
   build: {
     outDir: "dist",

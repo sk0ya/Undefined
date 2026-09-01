@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import type { GameConn } from "./useGame";
 import { savedName } from "./useGame";
+import { normalizeRoomCode } from "./net/peer";
+import type { ClientMessage } from "./game/protocol";
 import type { ProposalView, RoleView, Snapshot } from "./types";
 import {
   AnnouncementLog,
@@ -12,19 +14,36 @@ import {
   PhaseBanner,
   PhaseStepper,
   ProposalCard,
+  QuestionBoard,
+  ReadyBar,
   ResultsView,
   ScenarioPanel,
+  SoundToggle,
+  TeamCard,
   TimerDisplay,
   VacantRolesCard,
 } from "./components";
 
-export default function PlayerApp({ conn }: { conn: GameConn }) {
-  const { state, status, joined, lastError, clearError, serverNow, send, join } = conn;
+export default function PlayerApp({
+  conn,
+  roomCode,
+  connecting,
+  onSubmitJoin,
+}: {
+  conn: GameConn;
+  roomCode: string;
+  /** ルームコード入力後、参加が確定するまでの待ち状態 */
+  connecting: boolean;
+  onSubmitJoin: (code: string, name: string) => void;
+}) {
+  const { state, status, joined, lastError, clearError, serverNow, send } = conn;
 
   if (!joined || !state) {
     return (
       <JoinScreen
-        onJoin={(name) => join({ name })}
+        initialCode={roomCode}
+        connecting={connecting}
+        onJoin={onSubmitJoin}
         status={status}
         lastError={lastError}
         clearError={clearError}
@@ -40,6 +59,7 @@ export default function PlayerApp({ conn }: { conn: GameConn }) {
         <div className="brand">📋 要件定義ゲーム</div>
         <TimerDisplay timer={state.timer} serverNow={serverNow} />
         <div className="topbar-right">
+          <SoundToggle />
           {state.myRoomName && <div className="room-chip">🚪 {state.myRoomName}</div>}
           {myRole && (
             <div className="me-chip">
@@ -51,7 +71,12 @@ export default function PlayerApp({ conn }: { conn: GameConn }) {
       <PhaseStepper phase={state.phase} />
       <main className="content">
         <PhaseBanner phase={state.phase} />
-        <PlayerPhaseContent state={state} send={send} myRole={myRole} />
+        <PlayerPhaseContent
+          state={state}
+          send={send}
+          myRole={myRole}
+          serverNow={serverNow}
+        />
       </main>
       <AnnouncementToasts items={state.announcements} />
       <ErrorToast message={lastError} onClose={clearError} />
@@ -67,17 +92,24 @@ function findMyRole(state: Snapshot): RoleView | null {
 }
 
 function JoinScreen({
+  initialCode,
+  connecting,
   onJoin,
   status,
   lastError,
   clearError,
 }: {
-  onJoin: (name: string) => void;
+  initialCode: string;
+  connecting: boolean;
+  onJoin: (code: string, name: string) => void;
   status: string;
   lastError: string | null;
   clearError: () => void;
 }) {
+  const [code, setCode] = useState(initialCode);
   const [name, setName] = useState(savedName());
+  const ready = code.length === 6 && !!name.trim();
+
   return (
     <div className="join-screen">
       <div className="join-card">
@@ -90,26 +122,43 @@ function JoinScreen({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim()) onJoin(name.trim());
+            if (ready) onJoin(code, name.trim());
           }}
         >
           <input
-            autoFocus
+            autoFocus={!initialCode}
+            className="room-input"
+            placeholder="ルームコード"
+            value={code}
+            maxLength={6}
+            inputMode="text"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            onChange={(e) => setCode(normalizeRoomCode(e.target.value))}
+          />
+          <input
+            autoFocus={!!initialCode}
             placeholder="あなたの名前(ニックネーム可)"
             value={name}
             maxLength={20}
             onChange={(e) => setName(e.target.value)}
           />
-          <button type="submit" disabled={!name.trim() || status !== "open"}>
-            参加する
+          <button type="submit" disabled={!ready || connecting}>
+            {connecting ? "接続中…" : "参加する"}
           </button>
         </form>
+        <p className="small muted">
+          ルームコードはホストの画面に表示されています(6文字)。
+        </p>
         {lastError && (
           <p className="error-text" onClick={clearError}>
             ⚠ {lastError}
           </p>
         )}
-        <ConnBadge status={status} />
+        {connecting && status !== "open" && (
+          <p className="small muted pulse">ホストを探しています…</p>
+        )}
       </div>
     </div>
   );
@@ -119,28 +168,50 @@ function PlayerPhaseContent({
   state,
   send,
   myRole,
+  serverNow,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
   myRole: RoleView | null;
+  serverNow: () => number;
 }) {
+  const hearing = state.scenario?.type === "hearing";
+  const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
+  const roleTab: Tab = [
+    "🎭 ロール",
+    <RoleCard role={myRole} hearing={hearing} key="r" />,
+  ];
+  const scenarioTab: Tab = [
+    "📖 シナリオ",
+    state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null,
+  ];
+  // バッジは「何件あるか」で統一する。未記入数はDocEditor側で見出しに出す
+  const docTab = (heading?: string): Tab => [
+    heading ? "📄 仕様書(最終確認)" : "📄 仕様書",
+    <DocEditor state={state} send={send} heading={heading} serverNow={serverNow} key="d" />,
+  ];
+
   switch (state.phase) {
     case "lobby":
       return <LobbyView state={state} />;
     case "briefing":
       return (
-        <Tabs
-          tabs={[
-            [
-              "🎭 あなたのロール",
-              <div key="r">
-                <RoleCard role={myRole} hearing={state.scenario?.type === "hearing"} />
-                <VacantRolesCard state={state} />
-              </div>,
-            ],
-            ["📖 シナリオ", state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null],
-          ]}
-        />
+        <>
+          <Tabs
+            tabs={[
+              [
+                "🎭 あなたのロール",
+                <div key="r">
+                  <RoleCard role={myRole} hearing={hearing} />
+                  <VacantRolesCard state={state} />
+                  <TeamCard state={state} />
+                </div>,
+              ],
+              scenarioTab,
+            ]}
+          />
+          <ReadyBar state={state} send={send} label="読み終わりました" />
+        </>
       );
     case "discussion":
       return (
@@ -148,12 +219,26 @@ function PlayerPhaseContent({
           <AnnouncementLog items={state.announcements} />
           <Tabs
             tabs={[
-              ["📝 要求カード", <ProposalWorkspace state={state} send={send} key="p" />],
-              ["📄 仕様書", <DocEditor state={state} send={send} key="d" />],
-              ["🎭 ロール", <RoleCard role={myRole} hearing={state.scenario?.type === "hearing"} key="r" />],
-              ["📖 シナリオ", state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null],
+              ...(hasNPCs
+                ? ([
+                    [
+                      "🎤 ヒアリング",
+                      <QuestionBoard state={state} send={send} key="q" />,
+                      state.questions.length || undefined,
+                    ],
+                  ] as Tab[])
+                : []),
+              [
+                "📝 要求カード",
+                <ProposalWorkspace state={state} send={send} key="p" />,
+                state.proposals.length || undefined,
+              ],
+              docTab(),
+              roleTab,
+              scenarioTab,
             ]}
           />
+          <ReadyBar state={state} send={send} label="議論はここまででOK" />
         </>
       );
     case "voting":
@@ -162,10 +247,14 @@ function PlayerPhaseContent({
           <AnnouncementLog items={state.announcements} />
           <Tabs
             tabs={[
-              ["🗳 投票", <VotingView state={state} send={send} key="v" />],
-              ["📄 仕様書", <DocEditor state={state} send={send} key="d" />],
-              ["🎭 ロール", <RoleCard role={myRole} hearing={state.scenario?.type === "hearing"} key="r" />],
-              ["📖 シナリオ", state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null],
+              [
+                "🗳 投票",
+                <VotingView state={state} send={send} key="v" />,
+                state.proposals.filter((p) => !p.myVote).length || undefined,
+              ],
+              docTab(),
+              roleTab,
+              scenarioTab,
             ]}
           />
         </>
@@ -176,19 +265,20 @@ function PlayerPhaseContent({
           <AnnouncementLog items={state.announcements} />
           <Tabs
             tabs={[
-              [
-                "📄 仕様書(最終確認)",
-                <DocEditor
-                  state={state}
-                  send={send}
-                  heading="📄 要件定義書(仕上げ)"
-                  key="d"
-                />,
-              ],
-              ["🎭 ロール", <RoleCard role={myRole} hearing={state.scenario?.type === "hearing"} key="r" />],
-              ["📖 シナリオ", state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null],
+              docTab("📄 要件定義書(仕上げ)"),
+              ...(hasNPCs
+                ? ([
+                    [
+                      "🎤 ヒアリング記録",
+                      <QuestionBoard state={state} send={send} key="q" />,
+                    ],
+                  ] as Tab[])
+                : []),
+              roleTab,
+              scenarioTab,
             ]}
           />
+          <ReadyBar state={state} send={send} label="仕上げ完了" />
         </>
       );
     case "results":
@@ -207,14 +297,38 @@ function LobbyView({ state }: { state: Snapshot }) {
       <h3>参加者({state.players.length}/40)</h3>
       <div className="player-list">
         {state.players.map((p) => (
-          <div key={p.id} className={"player-tag" + (p.connected ? "" : " offline")}>
+          <div
+            key={p.id}
+            className={
+              "player-tag" +
+              (p.connected ? "" : " offline") +
+              (p.id === state.myPlayerId ? " player-me" : "")
+            }
+          >
             {p.name}
             {!p.connected && "(切断)"}
           </div>
         ))}
       </div>
       <p className="muted pulse">ホストがゲームを開始するのを待っています…</p>
-      <p className="small muted">開始時に2〜4人のルームへ自動で分かれ、ルーム対抗で要件定義書の品質を競います。</p>
+      <p className="small muted">
+        開始時に2〜4人のルームへ自動で分かれ、ルーム対抗で要件定義書の品質を競います。
+      </p>
+      <div className="lobby-tips">
+        <h4>勝つコツ</h4>
+        <ul className="small">
+          <li>
+            <strong>聞かないと出てこない。</strong>
+            相手は「聞かれたことだけ」答えます。正常系より<strong>例外・繁忙期・今の回避策</strong>を掘ると差がつきます
+          </li>
+          <li>
+            <strong>数字を書く。</strong>「速い」ではなく「3秒以内」。曖昧な要件は採点でも実運用テストでも崩れます
+          </li>
+          <li>
+            <strong>やらないことを書く。</strong>スコープ外の明示は、機能を足すのと同じくらい評価されます
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -263,7 +377,7 @@ function ProposalWorkspace({
   send,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
   const cats = state.scenario?.categories ?? [];
   const [category, setCategory] = useState(cats[0] ?? "");
@@ -326,17 +440,32 @@ function ProposalList({
   send,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   return (
     <div className="card">
       <h3>提出された要求カード({state.proposals.length})</h3>
-      {state.proposals.length === 0 && <p className="muted">まだありません</p>}
+      {state.proposals.length === 0 && (
+        <p className="muted">
+          まだありません。気づいたことは小さくてもカードにしておくと、投票と採点で効いてきます。
+        </p>
+      )}
+      {state.proposals.length > 0 && (
+        <p className="small muted">
+          リアクションで温度感を伝えられます(投票ではないので何度でも変えられます)。
+        </p>
+      )}
       {state.proposals.map((p) => {
         const isMine = p.authorId === state.myPlayerId;
         return (
-          <ProposalCard key={p.id} p={p} phase={state.phase} isMine={isMine}>
+          <ProposalCard
+            key={p.id}
+            p={p}
+            phase={state.phase}
+            isMine={isMine}
+            onReact={(emoji) => send({ type: "react", proposalId: p.id, emoji })}
+          >
             {isMine && state.phase === "discussion" && (
               <div className="proposal-actions">
                 {editing === p.id ? (
@@ -421,18 +550,43 @@ function VotingView({
   send,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
+  const [onlyUnvoted, setOnlyUnvoted] = useState(false);
+  const total = state.proposals.length;
   const voted = state.proposals.filter((p) => p.myVote).length;
+  const done = total > 0 && voted === total;
+  const shown = onlyUnvoted ? state.proposals.filter((p) => !p.myVote) : state.proposals;
+
   return (
     <div className="card">
-      <h3>
-        投票({voted}/{state.proposals.length})
-      </h3>
-      <p className="small muted">
-        各要求を最終的な要件定義書に「採用すべきか」を投票してください。多数決で仮決定され、同数はファシリテーターが裁定します。
-      </p>
-      {state.proposals.map((p) => (
+      <div className="doc-editor-head">
+        <h3>
+          投票({voted}/{total})
+        </h3>
+        {total > voted && (
+          <button className="ghost small-btn" onClick={() => setOnlyUnvoted((v) => !v)}>
+            {onlyUnvoted ? "すべて表示" : `未投票だけ表示(${total - voted})`}
+          </button>
+        )}
+      </div>
+      <div className="vote-progress">
+        <div className="bar">
+          <div
+            className="bar-fill"
+            style={{ width: `${total ? (voted / total) * 100 : 0}%` }}
+          />
+        </div>
+      </div>
+      {done ? (
+        <p className="ok-text">✓ すべて投票しました。チーム全員が終わるまで少し待ちましょう。</p>
+      ) : (
+        <p className="small muted">
+          各要求を最終的な要件定義書に「採用すべきか」を投票してください。多数決で仮決定され、同数はファシリテーターが裁定します。
+        </p>
+      )}
+      {shown.length === 0 && !done && <p className="muted">要求カードがありません</p>}
+      {shown.map((p) => (
         <ProposalCard key={p.id} p={p} phase={state.phase} isMine={p.authorId === state.myPlayerId}>
           <div className="vote-buttons">
             <button
@@ -454,23 +608,32 @@ function VotingView({
   );
 }
 
-function Tabs({ tabs }: { tabs: [string, React.ReactNode][] }) {
+/** [ラベル, 中身, バッジ数] */
+type Tab = [string, React.ReactNode, number?];
+
+function Tabs({ tabs }: { tabs: Tab[] }) {
   const valid = useMemo(() => tabs.filter(([, node]) => node != null), [tabs]);
-  const [active, setActive] = useState(0);
+  const [activeLabel, setActiveLabel] = useState(valid[0]?.[0] ?? "");
+  // タブ構成はフェーズで変わるので、位置ではなくラベルで選択を保持する
+  const activeIdx = Math.max(
+    0,
+    valid.findIndex(([label]) => label === activeLabel),
+  );
   return (
     <div>
       <div className="tabs">
-        {valid.map(([label], i) => (
+        {valid.map(([label, , badge], i) => (
           <button
             key={label}
-            className={"tab" + (i === active ? " tab-active" : "")}
-            onClick={() => setActive(i)}
+            className={"tab" + (i === activeIdx ? " tab-active" : "")}
+            onClick={() => setActiveLabel(label)}
           >
             {label}
+            {badge != null && badge > 0 && <span className="tab-badge">{badge}</span>}
           </button>
         ))}
       </div>
-      {valid[Math.min(active, valid.length - 1)]?.[1]}
+      {valid[activeIdx]?.[1]}
     </div>
   );
 }

@@ -4,12 +4,22 @@ import type {
   DocSection,
   Phase,
   ProposalView,
+  QuestionView,
   ScenarioView,
-  ScoreResult,
   Snapshot,
   TimerState,
 } from "./types";
-import { PHASES, phaseIndex } from "./types";
+import { PHASES, REACTIONS, phaseIndex } from "./types";
+import type { ClientMessage } from "./game/protocol";
+import {
+  isMuted,
+  playDing,
+  playFanfare,
+  playTimeUp,
+  playWarning,
+  setMuted,
+  unlockAudio,
+} from "./sound";
 
 // ---- タイマー ----
 
@@ -21,11 +31,18 @@ export function TimerDisplay({
   serverNow: () => number;
 }) {
   const [, tick] = useState(0);
+  // 残り1分・0秒はそれぞれ1回だけ鳴らす
+  const cued = useRef<{ warn: boolean; up: boolean }>({ warn: false, up: false });
+
   useEffect(() => {
     if (!timer.running) return;
     const id = setInterval(() => tick((n) => n + 1), 250);
     return () => clearInterval(id);
   }, [timer.running, timer.endsAtMs]);
+
+  useEffect(() => {
+    cued.current = { warn: false, up: false };
+  }, [timer.endsAtMs, timer.totalMs]);
 
   let ms: number;
   if (timer.running) {
@@ -37,20 +54,58 @@ export function TimerDisplay({
   }
   const over = ms <= 0;
   if (over) ms = 0;
-  const total = Math.ceil(ms / 1000);
-  const mm = Math.floor(total / 60);
-  const ss = total % 60;
+  const secs = Math.ceil(ms / 1000);
+
+  if (timer.running) {
+    if (over && !cued.current.up) {
+      cued.current.up = true;
+      playTimeUp();
+    } else if (!over && secs <= 60 && !cued.current.warn) {
+      cued.current.warn = true;
+      playWarning();
+    }
+  }
+
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+  const pct = timer.totalMs > 0 ? Math.max(0, Math.min(100, (ms / timer.totalMs) * 100)) : 0;
+
   return (
     <div
       className={
         "timer" +
-        (over ? " timer-over" : total <= 60 ? " timer-warn" : "") +
+        (over ? " timer-over" : secs <= 60 ? " timer-warn" : "") +
         (!timer.running ? " timer-paused" : "")
       }
     >
-      {over ? "⏰ タイムアップ" : `⏱ ${mm}:${String(ss).padStart(2, "0")}`}
+      <span className="timer-text">
+        {over ? "⏰ タイムアップ" : `⏱ ${mm}:${String(ss).padStart(2, "0")}`}
+      </span>
       {!timer.running && !over && <span className="timer-badge">一時停止</span>}
+      {timer.totalMs > 0 && (
+        <span className="timer-track">
+          <span className="timer-fill" style={{ width: `${pct}%` }} />
+        </span>
+      )}
     </div>
+  );
+}
+
+/** 効果音のミュート切替(トップバー) */
+export function SoundToggle() {
+  const [off, setOff] = useState(isMuted);
+  return (
+    <button
+      className="sound-toggle"
+      title={off ? "効果音をオンにする" : "効果音をオフにする"}
+      aria-label={off ? "効果音をオンにする" : "効果音をオフにする"}
+      onClick={() => {
+        setMuted(!off);
+        setOff(!off);
+      }}
+    >
+      {off ? "🔇" : "🔊"}
+    </button>
   );
 }
 
@@ -107,6 +162,7 @@ export function AnnouncementToasts({ items }: { items: Announcement[] }) {
       fresh.forEach((a) => next.add(a.id));
       return next;
     });
+    playDing();
     setVisible((prev) => [...prev, ...fresh]);
     fresh.forEach((a) => {
       setTimeout(() => {
@@ -145,6 +201,151 @@ export function AnnouncementLog({ items }: { items: Announcement[] }) {
           <p>{a.body}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---- ヒアリング(質問ボード) ----
+
+/**
+ * ヒアリング型シナリオの中核。プレイヤーがNPCに質問を送り、AI(自動)または
+ * ホスト(手動)が答える。ルーム単位の記録なので、ホストが同時に全ルームの
+ * NPCを演じられなくてもヒアリングが成立する。
+ */
+export function QuestionBoard({
+  state,
+  send,
+}: {
+  state: Snapshot;
+  send: (m: ClientMessage) => void;
+}) {
+  const npcs = state.scenario?.npcs ?? [];
+  const [npcId, setNpcId] = useState(npcs[0]?.id ?? "");
+  const [text, setText] = useState("");
+  const npc = npcs.find((n) => n.id === npcId) ?? npcs[0];
+
+  const myCount = state.questions.filter((q) => q.askerId === state.myPlayerId).length;
+  const waiting = state.questions.filter((q) => !q.answer).length;
+
+  const submit = () => {
+    if (!text.trim() || !npc) return;
+    unlockAudio();
+    send({ type: "ask", npcId: npc.id, text: text.trim() });
+    setText("");
+  };
+
+  if (npcs.length === 0) return null;
+
+  return (
+    <div>
+      <div className="card ask-card">
+        <div className="doc-editor-head">
+          <h3>🎤 ヒアリング</h3>
+          <span className="small muted">
+            あなたの質問 {myCount}件{waiting > 0 && ` / 回答待ち ${waiting}件`}
+          </span>
+        </div>
+        <p className="small muted">
+          NPCは<strong>聞かれたことだけ</strong>答えます。「なぜ」「例外のときは」「今はどうしている」——
+          具体的に踏み込むほど、隠れた事情が出てきます。
+        </p>
+        <div className="npc-picker">
+          {npcs.map((n) => (
+            <button
+              key={n.id}
+              className={"npc-chip" + (n.id === npc?.id ? " npc-chip-on" : "")}
+              onClick={() => setNpcId(n.id)}
+            >
+              <span className="role-icon">{n.icon}</span>
+              <span>
+                <strong>{n.name}</strong>
+                <span className="muted small"> {n.title}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        {npc && <p className="npc-opening prewrap">💬 {npc.opening}</p>}
+        <textarea
+          rows={2}
+          maxLength={300}
+          placeholder={`${npc?.name ?? "NPC"}さんへの質問(例: 予約が重なったとき、いまは誰がどう捌いていますか?)`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
+          }}
+        />
+        <div className="ask-actions">
+          <button disabled={!text.trim()} onClick={submit}>
+            質問する
+          </button>
+          <span className="small muted">
+            Ctrl+Enterでも送信 ／{" "}
+            {state.autoAnswer ? "AIが即座に答えます" : "ホストが回答します"}
+          </span>
+        </div>
+      </div>
+      <QuestionLog questions={state.questions} myPlayerId={state.myPlayerId} />
+    </div>
+  );
+}
+
+/** 質問と回答の記録(新しい順)。ルーム全員で共有される */
+export function QuestionLog({
+  questions,
+  myPlayerId,
+  heading,
+}: {
+  questions: QuestionView[];
+  myPlayerId?: string;
+  heading?: string;
+}) {
+  // 新しい回答が届いたら知らせる
+  const answered = questions.filter((q) => q.answer).length;
+  const prevAnswered = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevAnswered.current !== null && answered > prevAnswered.current) playDing();
+    prevAnswered.current = answered;
+  }, [answered]);
+
+  return (
+    <div className="card">
+      <h3>{heading ?? `📒 ヒアリング記録(${questions.length})`}</h3>
+      {questions.length === 0 && (
+        <p className="muted">
+          まだ質問がありません。まずは「いま困っていることは何ですか?」から始めてみましょう。
+        </p>
+      )}
+      <div className="qa-list">
+        {[...questions].reverse().map((q) => (
+          <div key={q.id} className={"qa" + (q.askerId === myPlayerId ? " qa-mine" : "")}>
+            <div className="qa-q">
+              <span className="qa-asker">
+                {q.askerName}
+                {q.askerRole && <span className="muted small"> / {q.askerRole}</span>}
+              </span>
+              <span className="qa-arrow">→</span>
+              <span className="qa-npc">
+                {q.npcIcon} {q.npcName}
+              </span>
+            </div>
+            <div className="qa-text prewrap">{q.text}</div>
+            {q.answer ? (
+              <div className="qa-a prewrap">
+                <span className="qa-a-icon">{q.npcIcon}</span>
+                <span>
+                  {q.answer}
+                  {q.source === "ai" && <span className="chip chip-ai">AI</span>}
+                </span>
+              </div>
+            ) : (
+              <div className="qa-waiting">
+                {q.pending ? "…考えています" : "…回答待ち"}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -239,14 +440,18 @@ export function ProposalCard({
   p,
   phase,
   isMine,
+  onReact,
   children,
 }: {
   p: ProposalView;
   phase: Phase;
   isMine: boolean;
+  /** 渡すとリアクションバーを表示(議論フェーズのプレイヤー向け) */
+  onReact?: (emoji: string) => void;
   children?: React.ReactNode;
 }) {
   const showStatus = phase === "finalize" || phase === "results";
+  const totalReactions = Object.values(p.reactions ?? {}).reduce((a, b) => a + b, 0);
   return (
     <div className={"proposal" + (showStatus ? ` proposal-${p.status}` : "")}>
       <div className="proposal-head">
@@ -269,7 +474,40 @@ export function ProposalCard({
         {!p.votesVisible && phase === "voting" && (
           <span className="vote-counts">投票済 {p.votedCount}人</span>
         )}
+        {!onReact && totalReactions > 0 && (
+          <span className="reaction-summary">
+            {REACTIONS.filter((r) => p.reactions?.[r.emoji]).map((r) => (
+              <span key={r.emoji}>
+                {r.emoji}
+                {p.reactions![r.emoji]}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
+      {p.notVoted && p.notVoted.length > 0 && (
+        <div className="not-voted">⏳ 未投票: {p.notVoted.join("・")}</div>
+      )}
+      {onReact && (
+        <div className="reaction-bar">
+          {REACTIONS.map((r) => {
+            const count = p.reactions?.[r.emoji] ?? 0;
+            const mine = p.myReaction === r.emoji;
+            return (
+              <button
+                key={r.emoji}
+                className={"reaction-btn" + (mine ? " reaction-on" : "")}
+                title={r.label}
+                onClick={() => onReact(r.emoji)}
+              >
+                <span className="reaction-emoji">{r.emoji}</span>
+                <span className="reaction-label">{r.label}</span>
+                {count > 0 && <span className="reaction-count">{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {children}
     </div>
   );
@@ -346,6 +584,73 @@ export function DocView({ state }: { state: Snapshot }) {
 
 // ---- 結果表示 ----
 
+/** 0 から target まで数え上げる(結果発表の演出) */
+function useCountUp(target: number, durationMs = 1400): number {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      // ease-out: 最後にゆっくり止まる
+      setValue(Math.round(target * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs]);
+  return value;
+}
+
+/** 紙吹雪。高得点のときだけ出す */
+function Confetti({ pieces = 70 }: { pieces?: number }) {
+  const bits = useMemo(
+    () =>
+      Array.from({ length: pieces }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 2.2,
+        duration: 2.6 + Math.random() * 2,
+        hue: Math.floor(Math.random() * 360),
+        tilt: Math.random() * 360,
+      })),
+    [pieces],
+  );
+  return (
+    <div className="confetti" aria-hidden="true">
+      {bits.map((b) => (
+        <span
+          key={b.id}
+          style={{
+            left: `${b.left}%`,
+            animationDelay: `${b.delay}s`,
+            animationDuration: `${b.duration}s`,
+            background: `hsl(${b.hue} 85% 62%)`,
+            transform: `rotate(${b.tilt}deg)`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** チームスコアの演出付き表示 */
+function TeamScoreReveal({ teamScore }: { teamScore: number }) {
+  const shown = useCountUp(teamScore);
+  useEffect(() => {
+    playFanfare();
+  }, []);
+  return (
+    <>
+      {teamScore >= 70 && <Confetti />}
+      <div className="team-score">
+        <span className="team-score-num">{shown}</span>
+        <span className="team-score-max">/ 100</span>
+      </div>
+    </>
+  );
+}
+
 export function ResultsView({ state }: { state: Snapshot }) {
   const score = state.score;
   const sc = state.scenario;
@@ -365,10 +670,7 @@ export function ResultsView({ state }: { state: Snapshot }) {
       {score ? (
         <div className="card score-card">
           <h3>🏆 チームスコア</h3>
-          <div className="team-score">
-            <span className="team-score-num">{score.teamScore}</span>
-            <span className="team-score-max">/ 100</span>
-          </div>
+          <TeamScoreReveal teamScore={score.teamScore} />
           <div className="axes">
             {score.axes.map((a) => (
               <div key={a.name} className="axis">
@@ -530,6 +832,17 @@ export function ResultsView({ state }: { state: Snapshot }) {
         ))}
       </div>
 
+      {state.questions.length > 0 && (
+        <>
+          <h3 className="section-title">🎤 ヒアリングの記録</h3>
+          <QuestionLog
+            questions={state.questions}
+            myPlayerId={state.myPlayerId}
+            heading={`このチームは${state.questions.length}回質問しました`}
+          />
+        </>
+      )}
+
       <h3 className="section-title">最終成果物</h3>
       <div className="card">
         <DocView state={state} />
@@ -545,15 +858,23 @@ export function DocEditor({
   send,
   heading,
   roomId,
+  serverNow,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
   heading?: string;
   roomId?: string; // ホストが対象ルームを指定する場合
+  serverNow?: () => number;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const timeouts = useRef<Record<string, number>>({});
+  // 他の人の編集表示を数秒で消すため、定期的に再描画する
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 2000);
+    return () => clearInterval(id);
+  }, []);
 
   // サーバー側更新を反映(自分が編集中でないセクションのみ)
   useEffect(() => {
@@ -576,11 +897,17 @@ export function DocEditor({
   };
 
   const tmpl = state.scenario?.docTemplate ?? [];
+  const blank = state.doc.filter((s) => !s.content.trim()).length;
 
   return (
     <div className="card">
       <div className="doc-editor-head">
-        <h3>{heading ?? "📄 要件定義書エディタ"}</h3>
+        <h3>
+          {heading ?? "📄 要件定義書エディタ"}
+          {blank > 0 && (
+            <span className="blank-count">未記入 {blank}/{state.doc.length}</span>
+          )}
+        </h3>
         <button
           className="ghost"
           onClick={() => {
@@ -593,19 +920,30 @@ export function DocEditor({
         </button>
       </div>
       <p className="small muted">
-        全員で同時に編集できます(同じ欄を同時に書くと上書きされるので、担当を分けましょう)。「合意された要求一覧」は採用済みカードから自動で挿入されます。
+        全員で同時に編集できます。同じ欄を同時に書くと上書きされるので、担当を分けましょう(誰かが書いている欄には ✏️ が出ます)。「合意された要求一覧」は採用済みカードから自動で挿入されます。
       </p>
-      {state.doc.map((s) => (
-        <div key={s.id} className="doc-section-edit">
-          <h4>{s.title}</h4>
-          <textarea
-            rows={4}
-            placeholder={tmpl.find((t) => t.id === s.id)?.placeholder ?? ""}
-            value={drafts[s.id] ?? s.content}
-            onChange={(e) => onEdit(s.id, e.target.value)}
-          />
-        </div>
-      ))}
+      {state.doc.map((s) => {
+        const now = serverNow ? serverNow() : Date.now();
+        const busy =
+          s.editedBy &&
+          s.editedAtMs &&
+          now - s.editedAtMs < 10000 &&
+          !(s.id in drafts); // 自分が編集中の欄には出さない
+        return (
+          <div key={s.id} className="doc-section-edit">
+            <h4>
+              {s.title}
+              {busy && <span className="editing-badge">✏️ {s.editedBy} が編集中</span>}
+            </h4>
+            <textarea
+              rows={4}
+              placeholder={tmpl.find((t) => t.id === s.id)?.placeholder ?? ""}
+              value={drafts[s.id] ?? s.content}
+              onChange={(e) => onEdit(s.id, e.target.value)}
+            />
+          </div>
+        );
+      })}
       <h4>合意された要求一覧(自動)</h4>
       <DocView state={{ ...state, doc: [] }} />
     </div>
@@ -683,6 +1021,81 @@ export function VacantRolesCard({ state }: { state: Snapshot }) {
           <p className="small prewrap secret-box">{r.privateBrief}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---- チーム(同じルームの仲間) ----
+
+/** 自分のルームの面々。誰と組んでいるのか一目で分かるようにする */
+export function TeamCard({ state }: { state: Snapshot }) {
+  const mates = state.players.filter((p) => p.roomId && p.roomId === state.myRoomId);
+  if (mates.length === 0) return null;
+  const roles = state.scenario?.roles ?? [];
+  return (
+    <div className="card team-card">
+      <h3>
+        🚪 {state.myRoomName ?? "あなたのルーム"}のチーム({mates.length}人)
+      </h3>
+      <div className="team-grid">
+        {mates.map((p) => {
+          const role = roles.find((r) => r.id === p.roleId);
+          const me = p.id === state.myPlayerId;
+          return (
+            <div key={p.id} className={"team-member" + (me ? " team-me" : "")}>
+              <span className="role-icon">{role?.icon ?? "👤"}</span>
+              <div>
+                <strong>
+                  {p.name}
+                  {me && <span className="chip chip-mine">あなた</span>}
+                </strong>
+                <div className="muted small">{role?.title ?? "未割当"}</div>
+              </div>
+              <span className={"team-status" + (p.ready ? " ready" : "")}>
+                {!p.connected ? "切断" : p.ready ? "✓ 準備OK" : ""}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---- 準備完了シグナル ----
+
+/**
+ * 「読み終わった / 書き終わった」をホストに伝えるボタン。フェーズを進める
+ * タイミングの判断材料になり、全員待たせる/置いていく事故を減らす。
+ */
+export function ReadyBar({
+  state,
+  send,
+  label,
+}: {
+  state: Snapshot;
+  send: (m: ClientMessage) => void;
+  label: string;
+}) {
+  const me = state.players.find((p) => p.id === state.myPlayerId);
+  const mates = state.players.filter((p) => p.roomId && p.roomId === state.myRoomId);
+  const readyCount = mates.filter((p) => p.ready).length;
+  if (!me) return null;
+  return (
+    <div className={"ready-bar" + (me.ready ? " ready-on" : "")}>
+      <button
+        className={me.ready ? "ghost" : "primary"}
+        onClick={() => {
+          unlockAudio();
+          send({ type: "set_ready", ready: !me.ready });
+        }}
+      >
+        {me.ready ? "✓ 準備OK(取り消す)" : label}
+      </button>
+      <span className="small muted">
+        チームの準備状況 {readyCount}/{mates.length}
+        {readyCount === mates.length && mates.length > 0 && " — 全員完了!"}
+      </span>
     </div>
   );
 }

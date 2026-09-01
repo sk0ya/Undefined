@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { GameConn } from "./useGame";
-import { apiPost } from "./useGame";
-import type { RoomView, Snapshot } from "./types";
+import type { AIKind, HostConn, PromptOpts } from "./useGame";
+import type { ClientMessage } from "./game/protocol";
+import type { QuestionView, RoomView, Snapshot } from "./types";
 import { PHASES, phaseIndex } from "./types";
 import {
   AnnouncementLog,
@@ -11,10 +11,16 @@ import {
   ErrorToast,
   Leaderboard,
   ProposalCard,
+  QuestionLog,
   ResultsView,
   ScenarioPanel,
+  SoundToggle,
   TimerDisplay,
 } from "./components";
+
+function errText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 /** 選択中ルームのデータをトップレベルに差し込んだ疑似スナップショット */
 function scopeToRoom(state: Snapshot, room: RoomView | undefined): Snapshot {
@@ -23,6 +29,7 @@ function scopeToRoom(state: Snapshot, room: RoomView | undefined): Snapshot {
     ...state,
     players: room.players,
     proposals: room.proposals,
+    questions: room.questions,
     doc: room.doc,
     score: room.score,
     myRoomId: room.id,
@@ -30,35 +37,21 @@ function scopeToRoom(state: Snapshot, room: RoomView | undefined): Snapshot {
   };
 }
 
-const HOSTKEY_KEY = "reqgame_hostkey";
-
-export default function HostApp({ conn }: { conn: GameConn }) {
-  const { state, status, joined, lastError, clearError, serverNow, send, join } = conn;
-  const [hostKey, setHostKey] = useState(localStorage.getItem(HOSTKEY_KEY) ?? "");
+export default function HostApp({ conn }: { conn: HostConn }) {
+  const { state, status, lastError, clearError, serverNow, send, roomCode } = conn;
   const [selectedRoomId, setSelectedRoomId] = useState("");
 
-  if (!joined || !state) {
+  // ルームを開くまではゲーム画面を出さない(コードが決まらないと誰も入れない)
+  if (!state || !roomCode) {
     return (
       <div className="join-screen">
         <div className="join-card">
           <h1>🎛 要件定義ゲーム — ホストコンソール</h1>
-          <p className="muted">ファシリテーターとしてゲームを進行します。</p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              localStorage.setItem(HOSTKEY_KEY, hostKey);
-              join({ asHost: true, hostKey });
-            }}
-          >
-            <input
-              placeholder="ホストキー(設定していなければ空欄)"
-              value={hostKey}
-              onChange={(e) => setHostKey(e.target.value)}
-            />
-            <button type="submit" disabled={status !== "open"}>
-              ホストとして接続
-            </button>
-          </form>
+          <p className="muted">
+            {status === "closed"
+              ? "接続に失敗しました。ネットワークを確認して再読み込みしてください。"
+              : "ルームを準備しています…"}
+          </p>
           {lastError && (
             <p className="error-text" onClick={clearError}>
               ⚠ {lastError}
@@ -78,8 +71,14 @@ export default function HostApp({ conn }: { conn: GameConn }) {
       <header className="topbar">
         <div className="brand">🎛 ホストコンソール</div>
         <TimerDisplay timer={state.timer} serverNow={serverNow} />
-        <div className="topbar-right muted small">
-          {state.scenario ? state.scenario.clientName : "シナリオ未選択"}
+        <div className="topbar-right">
+          <span className="room-code-chip" title="プレイヤーが入力するルームコード">
+            🔑 {roomCode}
+          </span>
+          <SoundToggle />
+          <span className="muted small">
+            {state.scenario ? state.scenario.clientName : "シナリオ未選択"}
+          </span>
         </div>
       </header>
       <HostPhaseControls state={state} send={send} />
@@ -87,7 +86,7 @@ export default function HostApp({ conn }: { conn: GameConn }) {
         {state.phase !== "lobby" && rooms.length > 0 && (
           <RoomTabs rooms={rooms} activeId={room?.id ?? ""} onSelect={setSelectedRoomId} />
         )}
-        <HostPhaseContent state={state} send={send} hostKey={hostKey} room={room} />
+        <HostPhaseContent conn={conn} state={state} send={send} room={room} />
       </main>
       <AnnouncementToasts items={state.announcements} />
       <ErrorToast message={lastError} onClose={clearError} />
@@ -103,7 +102,7 @@ function HostPhaseControls({
   send,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
   const idx = phaseIndex(state.phase);
   return (
@@ -130,6 +129,7 @@ function HostPhaseControls({
             ▶ 次のフェーズへ({PHASES[idx + 1].label})
           </button>
         )}
+        <ReadyReadout state={state} />
         <TimerControls send={send} />
         <button
           className="ghost danger"
@@ -146,10 +146,36 @@ function HostPhaseControls({
   );
 }
 
-function TimerControls({ send }: { send: (m: Record<string, unknown>) => void }) {
+/** 「次に進んでいいか」の判断材料: 準備OKを出した人数 */
+function ReadyReadout({ state }: { state: Snapshot }) {
+  if (state.phase === "lobby" || state.phase === "results") return null;
+  const assigned = state.players.filter((p) => p.roomId);
+  if (assigned.length === 0) return null;
+  const ready = assigned.filter((p) => p.ready).length;
+  const all = ready === assigned.length;
+  const waiting = assigned.filter((p) => !p.ready).map((p) => p.name);
+  return (
+    <div
+      className={"ready-readout" + (all ? " all-ready" : "")}
+      title={waiting.length > 0 ? `未完了: ${waiting.join("・")}` : "全員が準備OKです"}
+    >
+      {all ? "✅" : "⏳"} 準備OK {ready}/{assigned.length}
+    </div>
+  );
+}
+
+const TIMER_PRESETS = [5, 10, 15, 20];
+
+function TimerControls({ send }: { send: (m: ClientMessage) => void }) {
   const [min, setMin] = useState(10);
+  const start = (m: number) => send({ type: "timer", action: "start", seconds: m * 60 });
   return (
     <div className="timer-controls">
+      {TIMER_PRESETS.map((m) => (
+        <button key={m} className="ghost small-btn" onClick={() => start(m)}>
+          {m}分
+        </button>
+      ))}
       <input
         type="number"
         min={1}
@@ -157,10 +183,7 @@ function TimerControls({ send }: { send: (m: Record<string, unknown>) => void })
         value={min}
         onChange={(e) => setMin(Number(e.target.value))}
       />
-      <span className="small muted">分</span>
-      <button onClick={() => send({ type: "timer", action: "start", seconds: min * 60 })}>
-        ⏱ 開始
-      </button>
+      <button onClick={() => start(min)}>⏱ 開始</button>
       <button className="ghost" onClick={() => send({ type: "timer", action: "pause" })}>
         一時停止
       </button>
@@ -190,17 +213,26 @@ function RoomTabs({
   }
   return (
     <div className="room-tabs">
-      {rooms.map((r) => (
-        <button
-          key={r.id}
-          className={"room-tab" + (r.id === activeId ? " room-tab-active" : "")}
-          onClick={() => onSelect(r.id)}
-        >
-          🚪 {r.name}
-          <span className="room-tab-count">{r.players.length}人</span>
-          {r.score && <span className="room-tab-score">{r.score.teamScore}点</span>}
-        </button>
-      ))}
+      {rooms.map((r) => {
+        const waiting = r.questions.filter((q) => !q.answer).length;
+        const ready = r.players.filter((p) => p.ready).length;
+        return (
+          <button
+            key={r.id}
+            className={"room-tab" + (r.id === activeId ? " room-tab-active" : "")}
+            onClick={() => onSelect(r.id)}
+            title={`要求カード ${r.proposals.length}件 / 質問 ${r.questions.length}件`}
+          >
+            🚪 {r.name}
+            <span className="room-tab-count">
+              {r.players.length}人
+              {ready > 0 && ` ✓${ready}`}
+            </span>
+            {waiting > 0 && <span className="room-tab-alert">🎤 {waiting}</span>}
+            {r.score && <span className="room-tab-score">{r.score.teamScore}点</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -208,26 +240,27 @@ function RoomTabs({
 // ---- フェーズ別コンテンツ ----
 
 function HostPhaseContent({
+  conn,
   state,
   send,
-  hostKey,
   room,
 }: {
+  conn: HostConn;
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
-  hostKey: string;
+  send: (m: ClientMessage) => void;
   room?: RoomView;
 }) {
   const scoped = scopeToRoom(state, room);
   switch (state.phase) {
     case "lobby":
-      return <HostLobby state={state} send={send} />;
+      return <HostLobby conn={conn} state={state} send={send} />;
     case "briefing":
       return (
         <div className="cols">
           <div>
+            <AskQueuePanel conn={conn} state={state} send={send} />
             <HostRoleOverview state={scoped} />
-            <NPCReference state={state} hostKey={hostKey} />
+            <NPCReference conn={conn} state={state} />
           </div>
           <div>{state.scenario && <ScenarioPanel sc={state.scenario} />}</div>
         </div>
@@ -236,12 +269,20 @@ function HostPhaseContent({
       return (
         <div className="cols">
           <div>
-            <NPCReference state={state} hostKey={hostKey} />
+            <AskQueuePanel conn={conn} state={state} send={send} />
+            {scoped.questions.length > 0 && (
+              <QuestionLog
+                questions={scoped.questions}
+                heading={`📒 ${room?.name ?? ""}のヒアリング記録(${scoped.questions.length})`}
+              />
+            )}
+            <NPCReference conn={conn} state={state} />
             <HostProposalBoard state={scoped} send={send} />
           </div>
           <div>
             <ScriptedEventsPanel state={state} send={send} />
-            <AIPanel state={state} hostKey={hostKey} kinds={["event", "advice"]} roomId={room?.id} />
+            <AIPanel conn={conn} state={state} kinds={["event", "advice"]} roomId={room?.id} />
+            <AISettings conn={conn} />
             <AnnounceForm state={state} send={send} />
             <AnnouncementLog items={state.announcements} />
             <HiddenReqPanel state={state} />
@@ -279,7 +320,8 @@ function HostPhaseContent({
             />
           </div>
           <div>
-            <AIPanel state={state} hostKey={hostKey} kinds={["score", "advice"]} roomId={room?.id} />
+            <AIPanel conn={conn} state={state} kinds={["score", "advice"]} roomId={room?.id} />
+            <AISettings conn={conn} />
             <TestCasePreview state={state} />
             <HiddenReqPanel state={state} />
             <HostProposalBoard state={scoped} send={send} compact />
@@ -291,7 +333,7 @@ function HostPhaseContent({
         <div>
           <Leaderboard state={state} highlightRoomId={room?.id} />
           {!scoped.score && (
-            <AIPanel state={state} hostKey={hostKey} kinds={["score"]} roomId={room?.id} />
+            <AIPanel conn={conn} state={state} kinds={["score"]} roomId={room?.id} />
           )}
           <ResultsView state={scoped} />
         </div>
@@ -302,39 +344,40 @@ function HostPhaseContent({
 // ---- ロビー ----
 
 function HostLobby({
+  conn,
   state,
   send,
 }: {
+  conn: HostConn;
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
   const [selected, setSelected] = useState<string>("");
-  const url = `${location.protocol}//${location.host}/`;
   const n = state.players.length;
   const split = roomSplitPreview(n);
   return (
     <div className="cols">
-      <div className="card">
-        <h3>参加者({n}/40)</h3>
-        <p className="small muted">
-          プレイヤーは同じネットワークから <strong className="url">{url}</strong>{" "}
-          にアクセスして参加します。
-        </p>
-        {state.players.length === 0 && <p className="muted pulse">参加を待っています…</p>}
-        <div className="player-list">
-          {state.players.map((p) => (
-            <div key={p.id} className={"player-tag" + (p.connected ? "" : " offline")}>
-              {p.name}
-              {!p.connected && "(切断)"}
-              <button
-                className="tag-x"
-                title="削除"
-                onClick={() => send({ type: "remove_player", playerId: p.id })}
-              >
-                ×
-              </button>
-            </div>
-          ))}
+      <div>
+        <InviteCard conn={conn} />
+        <AISettings conn={conn} />
+        <div className="card">
+          <h3>参加者({n}/40)</h3>
+          {state.players.length === 0 && <p className="muted pulse">参加を待っています…</p>}
+          <div className="player-list">
+            {state.players.map((p) => (
+              <div key={p.id} className={"player-tag" + (p.connected ? "" : " offline")}>
+                {p.name}
+                {!p.connected && "(切断)"}
+                <button
+                  className="tag-x"
+                  title="削除"
+                  onClick={() => send({ type: "remove_player", playerId: p.id })}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <div className="card">
@@ -376,7 +419,147 @@ function HostLobby({
   );
 }
 
-/** n人をどう分けるかのプレビュー(サーバーの分割ロジックと同一) */
+/** プレイヤーの入り口。ルームコードと参加URLを大きく出す */
+function InviteCard({ conn }: { conn: HostConn }) {
+  const [copied, setCopied] = useState<"code" | "url" | null>(null);
+  const copy = (text: string, what: "code" | "url") => {
+    void navigator.clipboard.writeText(text);
+    setCopied(what);
+    setTimeout(() => setCopied(null), 2000);
+  };
+  return (
+    <div className="card invite-card">
+      <h3>プレイヤーの参加方法</h3>
+      <p className="small muted">
+        このページを開いたまま進行してください。<strong>このタブがゲームの本体</strong>です
+        (閉じても、同じブラウザで開き直せば途中から再開できます)。
+      </p>
+      <div className="invite-code" onClick={() => copy(conn.roomCode, "code")} title="クリックでコピー">
+        {conn.roomCode}
+      </div>
+      <p className="small muted center">
+        プレイヤーは同じURLを開き、このコードと名前を入れて参加します
+      </p>
+      <div className="invite-actions">
+        <button className="ghost" onClick={() => copy(conn.roomCode, "code")}>
+          {copied === "code" ? "✓ コピーしました" : "コードをコピー"}
+        </button>
+        <button className="ghost" onClick={() => copy(conn.joinUrl, "url")}>
+          {copied === "url" ? "✓ コピーしました" : "参加リンクをコピー"}
+        </button>
+      </div>
+      <p className="small invite-url">{conn.joinUrl}</p>
+      <details className="ideas">
+        <summary>うまく繋がらないときは</summary>
+        <ul className="small muted">
+          <li>
+            プレイヤーとホストの両方がインターネットに繋がっている必要があります(相手探しに使うため)。
+            繋がった後の通信は端末同士で直接やりとりします
+          </li>
+          <li>
+            社内ネットワークがWebRTCを遮断していると接続できません。別回線やテザリングで試してください
+          </li>
+          <li>コードを打ち間違えていないか確認してください(0とO、1とIは使っていません)</li>
+        </ul>
+      </details>
+      <button
+        className="ghost danger small-btn"
+        onClick={() => {
+          if (confirm("進行中のゲームを破棄して、新しいルームコードで開き直します。よろしいですか?")) {
+            conn.newRoom();
+          }
+        }}
+      >
+        新しいルームを開く
+      </button>
+    </div>
+  );
+}
+
+/** APIキーはホスト本人のブラウザにのみ置かれ、プレイヤーには渡らない */
+function AISettings({ conn }: { conn: HostConn }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(conn.ai);
+  const enabled = conn.ai.apiKey.trim().length > 0;
+  return (
+    <div className="card ai-settings">
+      <div className="doc-editor-head">
+        <h3>🔑 AI設定</h3>
+        <span className={enabled ? "chip chip-adopted" : "chip chip-pending"}>
+          {enabled ? "自動モード" : "手動モード(コピペ)"}
+        </span>
+      </div>
+      <p className="small muted">
+        {enabled
+          ? "AIが採点やNPC回答を直接実行します。"
+          : "キー未設定でも遊べます。プロンプトをコピーしてChatGPTに貼り、返答を貼り戻してください。"}
+      </p>
+      <button className="ghost small-btn" onClick={() => setOpen((v) => !v)}>
+        {open ? "閉じる" : enabled ? "キーを変更する" : "APIキーを設定する"}
+      </button>
+      {open && (
+        <div className="ai-settings-form">
+          <p className="small muted">
+            キーは<strong>このブラウザにだけ</strong>保存され、APIへ直接送られます。
+            プレイヤーには一切渡りません。共用PCでは「保存しない」を選んでください。
+          </p>
+          <input
+            type="password"
+            placeholder="APIキー(sk-...)"
+            value={draft.apiKey}
+            onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
+          />
+          <div className="form-row">
+            <input
+              placeholder="ベースURL"
+              value={draft.baseUrl}
+              onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
+            />
+            <input
+              placeholder="モデル名"
+              value={draft.model}
+              onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+            />
+          </div>
+          <label className="auto-answer-toggle">
+            <input
+              type="checkbox"
+              checked={draft.remember}
+              onChange={(e) => setDraft({ ...draft, remember: e.target.checked })}
+            />
+            このブラウザに保存する(共用PCでは外す)
+          </label>
+          <div className="proposal-actions">
+            <button
+              className="small-btn"
+              onClick={() => {
+                conn.setAI(draft);
+                setOpen(false);
+              }}
+            >
+              保存
+            </button>
+            <button
+              className="ghost small-btn danger"
+              onClick={() => {
+                const cleared = { ...draft, apiKey: "" };
+                setDraft(cleared);
+                conn.setAI(cleared);
+              }}
+            >
+              キーを消す
+            </button>
+          </div>
+          <p className="small muted">
+            ブラウザから直接呼ぶため、APIがCORSを許可している必要があります(OpenAIは対応)。
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** n人をどう分けるかのプレビュー(ホスト側の分割ロジックと同一) */
 function roomSplitPreview(n: number): string {
   if (n < 2) return "-";
   const numRooms = Math.ceil(n / 4);
@@ -442,7 +625,7 @@ function HostProposalBoard({
   compact,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
   compact?: boolean;
 }) {
   return (
@@ -482,13 +665,37 @@ function HostProposalBoard({
 function VoteProgress({ state }: { state: Snapshot }) {
   const total = state.proposals.length;
   const playerCount = state.players.length;
+  const complete = state.proposals.filter((p) => p.votedCount >= playerCount).length;
+  const tied = state.proposals.filter(
+    (p) => p.votedCount >= playerCount && p.approveCount === p.rejectCount,
+  );
   return (
     <div>
+      {total > 0 && (
+        <>
+          <div className="bar">
+            <div className="bar-fill" style={{ width: `${(complete / total) * 100}%` }} />
+          </div>
+          <p className="small">
+            {complete}/{total} 件が全員投票済
+            {complete === total && " — このルームは完了です"}
+          </p>
+          {tied.length > 0 && (
+            <p className="small warn-text">
+              ⚖ 同数のカードが{tied.length}件あります(仕上げフェーズであなたが裁定します):
+              {tied.map((p) => p.title).join("・")}
+            </p>
+          )}
+        </>
+      )}
       <ul className="small">
         {state.proposals.map((p) => (
-          <li key={p.id}>
+          <li key={p.id} className={p.votedCount >= playerCount ? "muted" : ""}>
             {p.title}: {p.votedCount}/{playerCount}人 投票済(賛成{p.approveCount}・反対
             {p.rejectCount})
+            {p.notVoted && p.notVoted.length > 0 && (
+              <span className="muted"> — 未投票: {p.notVoted.join("・")}</span>
+            )}
           </li>
         ))}
         {total === 0 && <li className="muted">要求カードがありません</li>}
@@ -504,7 +711,7 @@ function AnnounceForm({
   send,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -552,7 +759,7 @@ function AnnounceForm({
 
 // ---- NPCカンペ + AI回答(ヒアリング型) ----
 
-function NPCReference({ state, hostKey }: { state: Snapshot; hostKey: string }) {
+function NPCReference({ conn, state }: { conn: HostConn; state: Snapshot }) {
   const npcs = state.scenario?.npcs ?? [];
   const [npcId, setNpcId] = useState("");
   const [question, setQuestion] = useState("");
@@ -567,17 +774,14 @@ function NPCReference({ state, hostKey }: { state: Snapshot; hostKey: string }) 
     setBusy(true);
     setAnswer(null);
     setManualPrompt(null);
+    const opts = { npcId: npcId || npcs[0].id, question };
     try {
-      const res = await apiPost(
-        "/api/ai",
-        { kind: "npc", npcId: npcId || npcs[0].id, question },
-        hostKey,
-      );
-      if (res.mode === "auto" && res.response) setAnswer(res.response);
-      else setManualPrompt(res.prompt);
-      if (res.error) setAnswer("⚠ " + res.error);
-    } catch (e: any) {
-      setAnswer("⚠ " + (e.message ?? String(e)));
+      const res = await conn.runAI("npc", opts);
+      // キー未設定ならプロンプトを出して手貼りしてもらう
+      if (res) setAnswer(res.response);
+      else setManualPrompt(conn.buildPrompt("npc", opts));
+    } catch (e) {
+      setAnswer("⚠ " + errText(e));
     } finally {
       setBusy(false);
     }
@@ -656,6 +860,152 @@ function NPCReference({ state, hostKey }: { state: Snapshot; hostKey: string }) 
   );
 }
 
+// ---- ヒアリング質問キュー(全ルーム横断) ----
+
+/**
+ * プレイヤーからの未回答質問を一覧し、その場で答える。AIが有効なら自動回答が
+ * 走るので、ここに残るのは「AIを切っている」「AIが失敗した」ケース。
+ */
+function AskQueuePanel({
+  conn,
+  state,
+  send,
+}: {
+  conn: HostConn;
+  state: Snapshot;
+  send: (m: ClientMessage) => void;
+}) {
+  const queue = state.askQueue ?? [];
+  const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
+  if (!hasNPCs) return null;
+
+  return (
+    <div className="card ask-queue">
+      <div className="doc-editor-head">
+        <h3>🎤 質問キュー({queue.length})</h3>
+        <label className="auto-answer-toggle" title={state.aiEnabled ? "" : "APIキーが未設定です(下のAI設定から)"}>
+          <input
+            type="checkbox"
+            checked={state.autoAnswer}
+            disabled={!state.aiEnabled}
+            onChange={(e) => send({ type: "set_auto_answer", enabled: e.target.checked })}
+          />
+          AIが自動で答える
+        </label>
+      </div>
+      <p className="small muted">
+        {state.autoAnswer
+          ? "AIがNPCになりきって即答します。ホストは口頭ヒアリングの進行に集中できます。"
+          : state.aiEnabled
+            ? "自動回答はオフです。あなたが回答を書くとそのルームに届きます。"
+            : "AI未設定のため、あなたが回答を書きます(NPCカンペを参照)。複数ルームなら口頭ヒアリングとの併用がおすすめです。"}
+      </p>
+      {queue.length === 0 && <p className="muted">未回答の質問はありません</p>}
+      {queue.map((q) => (
+        <AnswerRow key={q.id} conn={conn} q={q} send={send} aiEnabled={state.aiEnabled} />
+      ))}
+    </div>
+  );
+}
+
+function AnswerRow({
+  conn,
+  q,
+  send,
+  aiEnabled,
+}: {
+  conn: HostConn;
+  q: QuestionView;
+  send: (m: ClientMessage) => void;
+  aiEnabled: boolean;
+}) {
+  const [answer, setAnswer] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // AI有効なら生成して即反映、手動モードならプロンプトを出して貼り戻してもらう
+  const askAI = async () => {
+    setBusy(true);
+    setPrompt(null);
+    try {
+      const res = await conn.runAI("npc", { questionId: q.id });
+      if (!res) setPrompt(conn.buildPrompt("npc", { questionId: q.id }));
+    } catch (e) {
+      setPrompt(null);
+      alert("AI呼び出しに失敗しました: " + errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyPasted = async () => {
+    if (!answer.trim()) return;
+    send({ type: "answer_question", questionId: q.id, answer: answer.trim() });
+    setAnswer("");
+    setPrompt(null);
+  };
+
+  return (
+    <div className={"queue-item" + (q.pending ? " queue-pending" : "")}>
+      <div className="queue-head">
+        <span className="chip chip-cat">{q.roomName}</span>
+        <strong>
+          {q.npcIcon} {q.npcName}
+        </strong>
+        <span className="muted small">
+          ← {q.askerName}
+          {q.askerRole && ` / ${q.askerRole}`}
+        </span>
+      </div>
+      <div className="queue-q prewrap">{q.text}</div>
+      {q.pending ? (
+        <p className="small muted pulse">AIが回答を生成しています…</p>
+      ) : (
+        <>
+          <textarea
+            rows={2}
+            placeholder={`${q.npcName}としての回答(聞かれたことだけ答える)`}
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) applyPasted();
+            }}
+          />
+          <div className="proposal-actions">
+            <button className="small-btn" disabled={!answer.trim()} onClick={applyPasted}>
+              回答を送る
+            </button>
+            <button className="ghost small-btn" disabled={busy} onClick={askAI}>
+              {busy ? "生成中…" : aiEnabled ? "🤖 AIに答えさせる" : "🤖 プロンプトを作る"}
+            </button>
+          </div>
+        </>
+      )}
+      {prompt && (
+        <div className="manual-flow">
+          <p className="small">
+            <strong>手動モード:</strong> これをChatGPT/Codexに貼り、返ってきたセリフを上の欄に貼り戻してください。
+          </p>
+          <div className="prompt-box">
+            <button
+              className="ghost small-btn copy-btn"
+              onClick={() => {
+                navigator.clipboard.writeText(prompt);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? "✓ コピー済" : "📋 コピー"}
+            </button>
+            <textarea readOnly rows={5} value={prompt} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- 固定イベント台本 ----
 
 function ScriptedEventsPanel({
@@ -663,7 +1013,7 @@ function ScriptedEventsPanel({
   send,
 }: {
   state: Snapshot;
-  send: (m: Record<string, unknown>) => void;
+  send: (m: ClientMessage) => void;
 }) {
   const events = state.scenario?.scriptedEvents ?? [];
   const [fired, setFired] = useState<Set<string>>(() => new Set());
@@ -747,10 +1097,10 @@ function TestCasePreview({ state }: { state: Snapshot }) {
 
 // ---- AIパネル ----
 
-type AIKind = "score" | "event" | "advice";
+type PanelKind = Exclude<AIKind, "npc">;
 
 const KIND_META: Record<
-  AIKind,
+  PanelKind,
   { label: string; icon: string; desc: string; inputLabel?: string }
 > = {
   score: {
@@ -773,20 +1123,20 @@ const KIND_META: Record<
 };
 
 function AIPanel({
+  conn,
   state,
-  hostKey,
   kinds,
   roomId,
 }: {
+  conn: HostConn;
   state: Snapshot;
-  hostKey: string;
-  kinds: AIKind[];
+  kinds: PanelKind[];
   roomId?: string;
 }) {
-  const [busy, setBusy] = useState<AIKind | null>(null);
+  const [busy, setBusy] = useState<PanelKind | null>(null);
   const [input, setInput] = useState("");
   const [result, setResult] = useState<{
-    kind: AIKind;
+    kind: PanelKind;
     mode: "auto" | "manual";
     prompt: string;
     response?: string;
@@ -797,42 +1147,48 @@ function AIPanel({
   const [copied, setCopied] = useState(false);
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
 
-  const run = async (kind: AIKind) => {
+  const optsFor = (kind: PanelKind): PromptOpts => ({
+    direction: kind === "event" ? input : undefined,
+    question: kind === "advice" ? input : undefined,
+    roomId: kind === "score" || kind === "advice" ? roomId : undefined,
+  });
+
+  const run = async (kind: PanelKind) => {
     setBusy(kind);
     setResult(null);
     setApplyMsg(null);
     setPasted("");
+    const opts = optsFor(kind);
     try {
-      const body: Record<string, string> = { kind };
-      if (kind === "event") body.direction = input;
-      if (kind === "advice") body.question = input;
-      if (roomId && (kind === "score" || kind === "advice")) body.roomId = roomId;
-      const res = await apiPost("/api/ai", body, hostKey);
-      setResult({ kind, ...res });
-    } catch (e: any) {
-      setResult({
-        kind,
-        mode: "manual",
-        prompt: "",
-        error: e.message ?? String(e),
-      });
+      const res = await conn.runAI(kind, opts);
+      if (res) {
+        setResult({ kind, mode: "auto", prompt: "", response: res.response, applied: res.applied });
+      } else {
+        // APIキー未設定 = 手動モード。プロンプトを出してコピペしてもらう
+        setResult({ kind, mode: "manual", prompt: conn.buildPrompt(kind, opts) });
+      }
+    } catch (e) {
+      // 失敗しても進行を止めないよう、手動モードに退避する
+      let prompt = "";
+      try {
+        prompt = conn.buildPrompt(kind, opts);
+      } catch {
+        /* プロンプトすら組めない場合はエラーだけ出す */
+      }
+      setResult({ kind, mode: "manual", prompt, error: errText(e) });
     } finally {
       setBusy(null);
     }
   };
 
-  const applyManual = async () => {
+  const applyManual = () => {
     if (!result || !pasted.trim()) return;
     try {
-      await apiPost(
-        "/api/ai/apply",
-        { kind: result.kind, raw: pasted, ...(roomId && result.kind === "score" ? { roomId } : {}) },
-        hostKey,
-      );
+      conn.applyAI(result.kind, pasted, optsFor(result.kind));
       setApplyMsg("✓ 反映しました");
       setPasted("");
-    } catch (e: any) {
-      setApplyMsg("⚠ " + (e.message ?? String(e)));
+    } catch (e) {
+      setApplyMsg("⚠ " + errText(e));
     }
   };
 
