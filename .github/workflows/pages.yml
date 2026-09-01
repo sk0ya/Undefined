@@ -36,6 +36,10 @@ jobs:
         working-directory: web
         run: npm test
 
+      - name: シナリオ定義の検証
+        working-directory: web
+        run: npm run validate:scenarios
+
       - name: 配信パスを決める
         id: base
         # ユーザー/組織ページ(<name>.github.io)は "/"、
