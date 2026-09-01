@@ -1280,6 +1280,29 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
   font-weight: 800;
 }
 .reaction-summary { margin-left: 10px; display: inline-flex; gap: 8px; }
+
+@media print {
+  body { background: #fff; }
+  .topbar, .phase-stepper, .phase-banner, .phase-guide, .tabs,
+  .ready-bar, .conn-badge, .toasts, .error-toast, .discussion-action-hub {
+    display: none !important;
+  }
+  .content { max-width: none; padding: 0; }
+  .doc-editor { border: 0; box-shadow: none; padding: 0; }
+  .doc-editor .doc-editor-head button,
+  .doc-editor > p,
+  .doc-editor .doc-section-edit button,
+  .doc-editor .doc-conflict button {
+    display: none;
+  }
+  .doc-editor textarea {
+    min-height: 80px;
+    border: 0;
+    padding: 0;
+    resize: none;
+  }
+}
+
 .not-voted {
   margin-top: 8px;
   font-size: 0.78rem;

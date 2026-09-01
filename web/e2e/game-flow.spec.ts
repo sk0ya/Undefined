@@ -52,6 +52,12 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await playerTwo.getByRole("button", { name: "提出する" }).click();
       await expect(playerOne.getByText("他メンバーからの要求")).toBeVisible();
       await expect(playerOne.getByRole("button", { name: /📝 要求カード.*新着 1.*自分の提出 1/ })).toBeVisible();
+      await playerOne.locator(".tabs").getByRole("button", { name: /📄 仕様書/ }).click();
+      await expect(playerOne.getByRole("button", { name: "要件定義書を印刷" })).toBeVisible();
+      await playerOne
+        .locator(".discussion-action-hub")
+        .getByRole("button", { name: /📝 要求カード/ })
+        .click();
 
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("合意形成(投票)");

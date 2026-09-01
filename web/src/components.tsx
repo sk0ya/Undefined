@@ -1160,7 +1160,7 @@ export function DocEditor({
   const blank = state.doc.filter((s) => !s.content.trim()).length;
 
   return (
-    <div className="card">
+    <div className="card doc-editor">
       <div className="doc-editor-head">
         <h3>
           {heading ?? "📄 要件定義書エディタ"}
@@ -1177,6 +1177,9 @@ export function DocEditor({
           }}
         >
           {copied ? "✓ コピーしました" : "Markdownをコピー"}
+        </button>
+        <button className="ghost" onClick={() => window.print()} aria-label="要件定義書を印刷">
+          🖨 印刷
         </button>
       </div>
       <p className="small muted">
