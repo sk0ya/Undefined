@@ -788,12 +788,16 @@ export class GameEngine {
         constraints: sc.constraints,
         categories: sc.categories,
         docTemplate: sc.docTemplate,
+        difficulty: sc.difficulty,
+        recommendedPlayers: sc.recommendedPlayers,
+        recommendedMinutes: sc.recommendedMinutes,
         rubric: sc.rubric,
         titles: sc.titles,
         roles: [],
       };
       if (isHost) {
         sv.eventIdeas = sc.eventIdeas;
+        sv.beats = sc.beats;
         sv.scriptedEvents = sc.scriptedEvents;
       }
       if (isHost || reveal) {
@@ -914,6 +918,9 @@ export function summaries(scenarios: Record<string, Scenario>): ScenarioSummary[
       clientName: sc.clientName,
       industry: sc.industry,
       maxPlayers: sc.roles.length,
+      difficulty: sc.difficulty,
+      recommendedPlayers: sc.recommendedPlayers,
+      recommendedMinutes: sc.recommendedMinutes,
     }))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }

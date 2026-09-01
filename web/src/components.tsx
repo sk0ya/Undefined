@@ -420,6 +420,13 @@ export function ScenarioPanel({ sc }: { sc: ScenarioView }) {
           {sc.clientName}({sc.industry})
         </p>
         <p className="tagline">“{sc.tagline}”</p>
+        {(sc.difficulty || sc.recommendedPlayers || sc.recommendedMinutes) && (
+          <p className="small scenario-meta">
+            {sc.difficulty && <span className="chip chip-cat">難易度: {sc.difficulty}</span>}
+            {sc.recommendedPlayers && <span className="chip chip-cat">推奨: {sc.recommendedPlayers}</span>}
+            {sc.recommendedMinutes && <span className="chip chip-cat">目安: {sc.recommendedMinutes}分</span>}
+          </p>
+        )}
       </div>
       <h4>背景</h4>
       <p className="prewrap">{sc.background}</p>

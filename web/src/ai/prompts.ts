@@ -265,7 +265,10 @@ export function buildEventPrompt(g: GameEngine, direction: string): string {
   }
   if (sc.eventIdeas?.length) {
     b.push("\n# イベントの方向性の例");
-    for (const e of sc.eventIdeas) b.push(`- ${e}`);
+    for (const e of sc.eventIdeas) {
+      if (typeof e === "string") b.push(`- ${e}`);
+      else b.push(`- ${e.title} / 発生条件: ${e.trigger} / 狙い: ${e.intent} / 難易度: ${e.difficulty}`);
+    }
   }
   if (direction.trim()) b.push(`\n# ホストからの指示\n${direction}`);
   b.push(`

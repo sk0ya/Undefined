@@ -95,6 +95,17 @@ function validateScenario(file, scenario) {
 
   if (!Array.isArray(scenario.eventIdeas) || scenario.eventIdeas.length < 3) {
     warn(file, "eventIdeasは3件以上を推奨します");
+  } else {
+    const structuredIdeas = scenario.eventIdeas.filter((idea) => idea && typeof idea === "object");
+    uniqueIds(file, structuredIdeas, "eventIdeas");
+    for (const idea of structuredIdeas) {
+      for (const key of ["id", "title", "trigger", "intent", "difficulty"]) {
+        requiredString(file, idea?.[key], `eventIdeas.${key}`);
+      }
+      if (!["初級", "標準", "上級"].includes(idea?.difficulty)) {
+        error(file, "eventIdeas.difficultyは初級・標準・上級のいずれかが必要です");
+      }
+    }
   }
   if (scenario.rubric !== undefined && (!Array.isArray(scenario.rubric) || scenario.rubric.length === 0)) {
     error(file, "rubricを指定する場合は1件以上必要です");

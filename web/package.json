@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "esbuild test/engine.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/engine.test.mjs && node --test node_modules/.cache/engine.test.mjs",
     "validate:scenarios": "node scripts/validate-scenarios.mjs",
+    "validate:scenarios:strict": "node scripts/validate-scenarios.mjs --strict",
     "codex:bridge": "node scripts/codex-bridge.mjs"
   },
   "dependencies": {

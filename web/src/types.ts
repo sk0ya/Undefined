@@ -94,6 +94,24 @@ export interface TestCase {
   checkPoint: string;
 }
 
+export interface EventIdea {
+  id: string;
+  title: string;
+  trigger: string;
+  intent: string;
+  difficulty: "初級" | "標準" | "上級";
+}
+
+export interface ScenarioBeat {
+  id: string;
+  phase: "導入" | "探索" | "圧力" | "決断" | "結果";
+  title: string;
+  trigger: string;
+  impact: string;
+  facilitatorCue: string;
+  counterfactual: string;
+}
+
 export interface RubricItem {
   name: string;
   max: number;
@@ -145,7 +163,11 @@ export interface Scenario {
   categories: string[];
   docTemplate: DocTemplateSection[];
   roles: Role[];
-  eventIdeas?: string[];
+  difficulty?: "初級" | "標準" | "上級";
+  recommendedPlayers?: string;
+  recommendedMinutes?: number;
+  eventIdeas?: (string | EventIdea)[];
+  beats?: ScenarioBeat[];
   npcs?: NPC[];
   hiddenRequirements?: HiddenRequirement[];
   scriptedEvents?: ScriptedEvent[];
@@ -166,7 +188,11 @@ export interface ScenarioView {
   constraints: string[];
   categories: string[];
   roles: RoleView[];
-  eventIdeas?: string[];
+  difficulty?: "初級" | "標準" | "上級";
+  recommendedPlayers?: string;
+  recommendedMinutes?: number;
+  eventIdeas?: (string | EventIdea)[];
+  beats?: ScenarioBeat[];
   docTemplate: DocTemplateSection[];
   npcs?: NPCView[];
   hiddenRequirements?: HiddenRequirement[];
@@ -301,6 +327,9 @@ export interface ScenarioSummary {
   clientName: string;
   industry: string;
   maxPlayers: number;
+  difficulty?: "初級" | "標準" | "上級";
+  recommendedPlayers?: string;
+  recommendedMinutes?: number;
 }
 
 export interface RoomView {

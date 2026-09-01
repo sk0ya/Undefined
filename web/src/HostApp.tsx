@@ -546,6 +546,8 @@ function HostLobby({
                   {sc.type === "hearing" ? "ヒアリング型" : "ステークホルダー型"}
                 </span>
                 {sc.clientName}({sc.industry})/ 最大{sc.maxPlayers}人
+                {sc.difficulty && ` / ${sc.difficulty}`}
+                {sc.recommendedMinutes && ` / ${sc.recommendedMinutes}分`}
               </div>
               <div className="small tagline">“{sc.tagline}”</div>
             </button>
@@ -960,9 +962,28 @@ function AnnounceForm({
         <details className="ideas">
           <summary>イベントのネタ帳(シナリオ同梱)</summary>
           <ul className="small">
-            {ideas.map((idea, i) => (
-              <li key={i}>{idea}</li>
-            ))}
+            {ideas.map((idea, i) =>
+              typeof idea === "string" ? (
+                <li key={i}>{idea}</li>
+              ) : (
+                <li key={idea.id}>
+                  <div className="doc-editor-head">
+                    <strong>{idea.title}</strong>
+                    <button
+                      className="ghost small-btn"
+                      onClick={() => {
+                        setTitle(idea.title);
+                        setBody(idea.trigger);
+                      }}
+                    >
+                      下書きに使う
+                    </button>
+                  </div>
+                  <div className="muted">発生条件: {idea.trigger}</div>
+                  <div className="muted">狙い: {idea.intent} / 難易度: {idea.difficulty}</div>
+                </li>
+              ),
+            )}
           </ul>
         </details>
       )}
