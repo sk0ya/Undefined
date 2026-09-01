@@ -585,6 +585,7 @@ function HostLobby({
             <button
               key={sc.id}
               className={"scenario-item" + (selected === sc.id ? " selected" : "")}
+              data-scenario-id={sc.id}
               onClick={() => setSelected(sc.id)}
             >
               <strong>{sc.title}</strong>

@@ -55,7 +55,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(playerTwo.locator(".phase-banner h2")).toHaveText("ロビー", { timeout: 30_000 });
       await expect(host.locator(".player-tag.offline")).toHaveCount(0, { timeout: 30_000 });
 
-      await host.locator("button.scenario-item").first().click();
+      const selectedScenario = host.locator("button.scenario-item").first();
+      const selectedScenarioId = await selectedScenario.getAttribute("data-scenario-id");
+      expect(selectedScenarioId).toBeTruthy();
+      await selectedScenario.click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ブリーフィング");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("ブリーフィング");
@@ -92,7 +95,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       const downloadPromise = playerOne.waitForEvent("download");
       await playerOne.getByRole("button", { name: "Markdownを保存" }).click();
       const download = await downloadPromise;
-      expect(download.suggestedFilename()).toBe("requirements-restaurant.md");
+      expect(download.suggestedFilename()).toBe(`requirements-${selectedScenarioId}.md`);
       await playerOne.emulateMedia({ media: "print" });
       await expect(playerOne.locator(".doc-editor")).toBeVisible();
       await expect(playerOne.locator(".topbar")).toBeHidden();
