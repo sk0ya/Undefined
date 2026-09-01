@@ -106,6 +106,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       const secondDocSection = playerTwo.locator(".doc-section-edit").first();
       await expect(secondDocSection).toBeVisible();
       await firstDocField.fill("プレイヤー1の下書き");
+      await expect(firstDocSection.getByText("✏️ 自分が編集中")).toBeVisible();
       await secondDocSection.locator("textarea").fill("プレイヤー2の保存内容");
       await expect(secondDocSection.getByText(/✓ 保存済み/)).toBeVisible({ timeout: 5_000 });
       await expect(playerOne.getByRole("alert")).toContainText("同時編集を検知しました");

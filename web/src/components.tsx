@@ -1229,6 +1229,7 @@ export function DocEditor({
           <div key={s.id} className="doc-section-edit">
             <h4>
               {s.title}
+              {s.id in drafts && <span className="editing-badge">✏️ 自分が編集中</span>}
               {busy && <span className="editing-badge">✏️ {s.editedBy} が編集中</span>}
               {saveStates[s.id] === "saving" && <span className="doc-save-state doc-save-saving">保存中…</span>}
               {saveStates[s.id] === "saved" && (
