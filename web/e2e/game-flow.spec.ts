@@ -94,6 +94,35 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await closeContext(playerTwoContext);
     }
   });
+
+  test("複数ルームの結果発表で進め方を比較できる", async ({ browser, baseURL }) => {
+    test.setTimeout(120_000);
+    const hostContext = await browser.newContext();
+    const playerContexts = await Promise.all(Array.from({ length: 5 }, () => browser.newContext()));
+    const host = await hostContext.newPage();
+    const players = await Promise.all(playerContexts.map((context) => context.newPage()));
+    host.on("dialog", (dialog) => void dialog.accept());
+
+    try {
+      await host.goto(`${baseURL}/#host`);
+      await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
+      const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
+      await Promise.all(players.map((player, index) => joinAs(player, roomCode, `比較プレイヤー${index + 1}`, baseURL)));
+      await expect(host.locator(".player-tag")).toHaveCount(5, { timeout: 30_000 });
+
+      await host.locator("button.scenario-item").first().click();
+      await host.getByRole("button", { name: /ゲーム開始/ }).click();
+      for (let i = 0; i < 4; i += 1) {
+        await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+      }
+      await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
+      await expect(host.locator(".room-comparison")).toBeVisible();
+      await expect(host.locator(".room-comparison-item")).toHaveCount(2);
+    } finally {
+      await closeContext(hostContext);
+      await Promise.all(playerContexts.map(closeContext));
+    }
+  });
 });
 
 async function joinAs(page: Page, roomCode: string, name: string, baseURL?: string) {
