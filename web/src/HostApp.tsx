@@ -6,6 +6,7 @@ import type { Phase, QuestionView, RoomView, Snapshot, TimerState } from "./type
 import { PHASES, phaseIndex, phaseLabel } from "./types";
 import { roomAttention, sortRoomsByAttention } from "./game/roomAttention";
 import { phaseTimerPreset, timerMode, TIMER_PRESETS } from "./game/timerPresets";
+import { phaseTransitionConfirmation, phaseTransitionInfo } from "./game/phaseTransition";
 import {
   AnnouncementLog,
   AnnouncementToasts,
@@ -228,6 +229,14 @@ function HostPhaseControls({
   serverNow: () => number;
 }) {
   const idx = phaseIndex(state.phase);
+  const moveTo = (target: Phase, forceConfirm = false) => {
+    if (target === state.phase) return;
+    const info = phaseTransitionInfo(state, target);
+    if (forceConfirm || info.warnings.length > 0) {
+      if (!window.confirm(phaseTransitionConfirmation(state, target))) return;
+    }
+    send({ type: "set_phase", phase: target });
+  };
   return (
     <div className="host-controls">
       <div className="stepper clickable">
@@ -238,7 +247,7 @@ function HostPhaseControls({
               "step" + (i === idx ? " step-active" : i < idx ? " step-done" : "")
             }
             disabled={p.id !== "lobby" && !state.scenario}
-            onClick={() => send({ type: "set_phase", phase: p.id })}
+            onClick={() => moveTo(p.id, true)}
             title={p.desc}
           >
             <span className="step-num">{i + 1}</span>
@@ -248,7 +257,10 @@ function HostPhaseControls({
       </div>
       <div className="control-row">
         {idx < PHASES.length - 1 && state.scenario && (
-          <button className="primary" onClick={() => send({ type: "next_phase" })}>
+          <button
+            className="primary"
+            onClick={() => moveTo(PHASES[idx + 1].id)}
+          >
             ▶ 次のフェーズへ({PHASES[idx + 1].label})
           </button>
         )}

@@ -11,6 +11,7 @@ import { applyMessage } from "../src/game/protocol";
 import { buildPhaseGuide } from "../src/game/phaseGuide";
 import { roomAttention, sortRoomsByAttention } from "../src/game/roomAttention";
 import { phaseTimerPreset, timerMode } from "../src/game/timerPresets";
+import { phaseTransitionConfirmation, phaseTransitionInfo } from "../src/game/phaseTransition";
 import type { Scenario, Snapshot } from "../src/types";
 import restaurant from "../../scenarios/restaurant.json";
 import smartFactory from "../../scenarios/smart-factory.json";
@@ -759,4 +760,33 @@ test("結果発表の次回の一手はhostが保存し、プレイヤーにも�
       { playerId: ids[0], isHost: false },
     ),
   );
+});
+
+test("投票中から結果へ直接移動すると投票を確定し、影響を確認できる", () => {
+  const { g, ids } = startGame();
+  g.setPhase("discussion");
+  g.propose(ids[0], "機能要件", "カード", "説明");
+  const proposalId = g.rooms[0].proposals[0].id;
+  g.setPhase("voting");
+  g.vote(ids[0], proposalId, "approve");
+
+  const before = asHost(g);
+  const info = phaseTransitionInfo(before, "results");
+  assert.equal(info.impacts.some((impact) => impact.includes("多数決で確定")), true);
+  assert.equal(info.warnings.some((warning) => warning.includes("未投票カード")), true);
+  assert.match(phaseTransitionConfirmation(before, "results"), /投票結果を多数決で確定/);
+  g.setPhase("results");
+  assert.equal(g.rooms[0].proposals[0].status, "adopted");
+});
+
+test("同じフェーズへの遷移はエンジン状態を変更しない", () => {
+  const { g } = startGame();
+  g.setPhase("discussion");
+  g.timerAction("start", 60);
+  g.setReady(Object.keys(g.players)[0], true);
+  const timer = { ...g.timer };
+  const ready = Object.values(g.players).map((player) => player.ready);
+  g.setPhase("discussion");
+  assert.deepEqual(g.timer, timer);
+  assert.deepEqual(Object.values(g.players).map((player) => player.ready), ready);
 });

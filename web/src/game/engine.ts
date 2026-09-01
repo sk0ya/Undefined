@@ -324,11 +324,12 @@ export class GameEngine {
     if (phase !== "lobby" && !this.scenarioId) {
       fail("先にシナリオを選んでゲームを開始してください");
     }
+    if (phase === this.phase) return;
     const prev = this.phase;
     this.phase = phase;
     this.timer = { running: false, endsAtMs: 0, remainingMs: 0, totalMs: 0 };
     for (const p of Object.values(this.players)) p.ready = false;
-    if (prev === "voting" && phase === "finalize") {
+    if (prev === "voting" && phase !== "voting") {
       for (const room of this.rooms) settleVotes(room);
     }
   }
