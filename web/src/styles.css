@@ -755,6 +755,12 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 .timer-presets-label { margin-left: 4px; white-space: nowrap; }
 .timer-main-action { white-space: nowrap; }
 .timer-expired-note { color: var(--ng); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.ai-status-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.ai-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; font-weight: 800; }
+.ai-status-waiting { color: var(--ink-500); background: var(--ink-100); }
+.ai-status-running { color: var(--brand-600); background: var(--brand-50); }
+.ai-status-applied, .ai-status-manual-done { color: var(--ok); background: var(--ok-bg); }
+.ai-status-failed { color: var(--ng); background: var(--ng-bg); }
 
 .sound-toggle {
   background: rgba(255, 255, 255, 0.1);

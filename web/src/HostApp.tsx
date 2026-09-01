@@ -1247,6 +1247,7 @@ function TestCasePreview({ state }: { state: Snapshot }) {
 // ---- AIパネル ----
 
 type PanelKind = Exclude<AIKind, "npc">;
+type AIStatus = "waiting" | "running" | "applied" | "failed" | "manual-done";
 
 const KIND_META: Record<
   PanelKind,
@@ -1288,6 +1289,8 @@ function AIPanel({
     kind: PanelKind;
     mode: "auto" | "manual";
     prompt: string;
+    opts: PromptOpts;
+    status: AIStatus;
     response?: string;
     applied?: boolean;
     error?: string;
@@ -1304,17 +1307,25 @@ function AIPanel({
 
   const run = async (kind: PanelKind) => {
     setBusy(kind);
-    setResult(null);
+    const opts = optsFor(kind);
+    setResult({ kind, mode: "auto", prompt: "", opts, status: "running" });
     setApplyMsg(null);
     setPasted("");
-    const opts = optsFor(kind);
     try {
       const res = await conn.runAI(kind, opts);
       if (res) {
-        setResult({ kind, mode: "auto", prompt: "", response: res.response, applied: res.applied });
+        setResult({
+          kind,
+          mode: "auto",
+          prompt: "",
+          opts,
+          status: "applied",
+          response: res.response,
+          applied: res.applied,
+        });
       } else {
         // APIキー未設定 = 手動モード。プロンプトを出してコピペしてもらう
-        setResult({ kind, mode: "manual", prompt: conn.buildPrompt(kind, opts) });
+        setResult({ kind, mode: "manual", prompt: conn.buildPrompt(kind, opts), opts, status: "waiting" });
       }
     } catch (e) {
       // 失敗しても進行を止めないよう、手動モードに退避する
@@ -1324,7 +1335,7 @@ function AIPanel({
       } catch {
         /* プロンプトすら組めない場合はエラーだけ出す */
       }
-      setResult({ kind, mode: "manual", prompt, error: errText(e) });
+      setResult({ kind, mode: "manual", prompt, opts, status: "failed", error: errText(e) });
     } finally {
       setBusy(null);
     }
@@ -1333,7 +1344,8 @@ function AIPanel({
   const applyManual = () => {
     if (!result || !pasted.trim()) return;
     try {
-      conn.applyAI(result.kind, pasted, optsFor(result.kind));
+      conn.applyAI(result.kind, pasted, result.opts);
+      setResult((prev) => (prev ? { ...prev, status: "manual-done", error: undefined } : prev));
       setApplyMsg("✓ 反映しました");
       setPasted("");
     } catch (e) {
@@ -1363,6 +1375,22 @@ function AIPanel({
           </button>
         ))}
       </div>
+      <div className="ai-status-line" aria-live="polite">
+        <span className={`ai-status ai-status-${result?.status ?? "waiting"}`}>
+          {result?.status === "running"
+              ? "実行中"
+            : result?.status === "applied"
+              ? result.kind === "advice"
+                ? "生成済み"
+                : "適用済み"
+              : result?.status === "failed"
+                ? "失敗"
+                : result?.status === "manual-done"
+                  ? "手動対応済み"
+                  : "待機中"}
+        </span>
+        {result?.mode === "manual" && result.status === "waiting" && <span className="small muted">手動対応待ち</span>}
+      </div>
       <ul className="small muted">
         {kinds.map((k) => (
           <li key={k}>{KIND_META[k].desc}</li>
@@ -1372,6 +1400,12 @@ function AIPanel({
       {result && (
         <div className="ai-result">
           {result.error && <p className="error-text">⚠ {result.error}</p>}
+
+          {result.status === "failed" && (
+            <button className="ghost small-btn" disabled={busy !== null} onClick={() => run(result.kind)}>
+              ↻ 再試行
+            </button>
+          )}
 
           {result.mode === "auto" && result.applied && (
             <p className="ok-text">✓ AIの結果をゲームに反映しました</p>
