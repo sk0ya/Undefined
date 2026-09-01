@@ -17,6 +17,7 @@ import {
   ProposalCard,
   QuestionLog,
   ResultsView,
+  RoomComparison,
   ScenarioPanel,
   SoundToggle,
   TimerDisplay,
@@ -528,6 +529,7 @@ function HostPhaseContent({
       return (
         <div>
           <Leaderboard state={state} highlightRoomId={room?.id} />
+          <RoomComparison state={state} />
           {!scoped.score && (
             <AIPanel conn={conn} state={state} kinds={["score"]} roomId={room?.id} />
           )}

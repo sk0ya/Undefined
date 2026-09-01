@@ -1320,6 +1320,38 @@ export function Leaderboard({
   );
 }
 
+/** 順位だけでなく、各ルームの議論量と仕様書の状態を比較するhost向け表示 */
+export function RoomComparison({ state }: { state: Snapshot }) {
+  const rooms = state.rooms ?? [];
+  if (rooms.length <= 1) return null;
+  return (
+    <section className="card room-comparison" aria-label="ルームごとの進め方の比較">
+      <h3>📊 チームの進め方を比較</h3>
+      <p className="small muted">同じ事件に対して、どのチームがどんな調査と判断を残したかを確認できます。</p>
+      <div className="room-comparison-grid">
+        {rooms.map((room) => {
+          const adopted = room.proposals.filter((proposal) => proposal.status === "adopted").length;
+          const blank = room.doc.filter((section) => !section.content.trim()).length;
+          return (
+            <div className="room-comparison-item" key={room.id}>
+              <div className="room-comparison-head">
+                <strong>{room.name}</strong>
+                <span>{room.score ? `${room.score.teamScore}点` : "採点待ち"}</span>
+              </div>
+              <div className="small room-comparison-stats">
+                <span>質問 {room.questions.length}件</span>
+                <span>要求 {room.proposals.length}件</span>
+                <span>採用 {adopted}件</span>
+                <span className={blank > 0 ? "warn-text" : "ok-text"}>空欄 {blank}件</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ---- 不在ロールの引き継ぎ資料(欠員補償) ----
 
 export function VacantRolesCard({ state }: { state: Snapshot }) {
