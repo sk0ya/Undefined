@@ -9,6 +9,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     const host = await hostContext.newPage();
     const playerOne = await playerOneContext.newPage();
     const playerTwo = await playerTwoContext.newPage();
+    host.on("dialog", (dialog) => void dialog.accept());
 
     try {
       await host.goto(`${baseURL}/#host`);
@@ -40,7 +41,6 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await playerOne.getByRole("button", { name: "提出する" }).click();
       await expect(playerOne.getByText("ブラウザE2Eの要求")).toBeVisible();
 
-      await acceptNextDialog(host);
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("合意形成(投票)");
       await expect(playerTwo.locator(".phase-banner h2")).toHaveText("合意形成(投票)");
@@ -53,11 +53,14 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("要件定義書の仕上げ");
 
-      await acceptNextDialog(host);
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("結果発表");
       await expect(playerTwo.locator(".phase-banner h2")).toHaveText("結果発表");
+
+      await host.reload();
+      await expect(host.locator(".restore-notice")).toBeVisible({ timeout: 30_000 });
+      await expect(host.locator(".restore-notice")).toContainText("結果発表");
     } finally {
       await closeContext(hostContext);
       await closeContext(playerOneContext);
@@ -72,10 +75,6 @@ async function joinAs(page: Page, roomCode: string, name: string, baseURL?: stri
   await page.getByPlaceholder("あなたの名前(ニックネーム可)").fill(name);
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.locator(".phase-banner h2")).toHaveText("ロビー", { timeout: 30_000 });
-}
-
-async function acceptNextDialog(page: Page) {
-  page.once("dialog", (dialog) => void dialog.accept());
 }
 
 async function closeContext(context: BrowserContext) {

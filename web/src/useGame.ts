@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Scenario, Snapshot } from "./types";
+import type { Phase, Scenario, Snapshot } from "./types";
 import {
   ClientSession,
   HostSession,
@@ -110,6 +110,8 @@ export interface HostConn extends GameConn {
   joinUrl: string;
   ai: AIConfig;
   setAI: (cfg: AIConfig) => void;
+  /** 保存済みゲームを復帰した直後にhostへ一度だけ表示する情報 */
+  restoredGame?: RestoredGameInfo;
   /** 保存済みのゲームを捨てて新しいルームを開く */
   newRoom: () => void;
   /** 自作シナリオを取り込む(このタブのゲームにのみ反映) */
@@ -120,6 +122,12 @@ export interface HostConn extends GameConn {
   runAI: (kind: AIKind, opts: PromptOpts) => Promise<AIRunResult | null>;
   /** 手貼りされたAI応答を反映する */
   applyAI: (kind: AIKind, raw: string, opts: PromptOpts) => void;
+}
+
+export interface RestoredGameInfo {
+  roomCode: string;
+  phase: Phase;
+  savedAtMs?: number;
 }
 
 export type AIKind = "score" | "event" | "advice" | "npc";
@@ -142,6 +150,7 @@ export function useHostGame(): HostConn {
   const [status, setStatus] = useState<ConnStatus>("connecting");
   const [lastError, setLastError] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState("");
+  const [restoredGame, setRestoredGame] = useState<RestoredGameInfo>();
   const [ai, setAiState] = useState<AIConfig>(loadAIConfig);
   const sessionRef = useRef<HostSession | null>(null);
   const aiRef = useRef(ai);
@@ -159,11 +168,35 @@ export function useHostGame(): HostConn {
 
   useEffect(() => {
     let restore: unknown;
+    let savedAtMs: number | undefined;
     try {
       const raw = localStorage.getItem(SAVED_GAME_KEY);
-      if (raw) restore = JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          "game" in parsed &&
+          parsed.game &&
+          typeof parsed.game === "object"
+        ) {
+          const envelope = parsed as { game: unknown; savedAtMs?: unknown };
+          restore = envelope.game;
+          savedAtMs = typeof envelope.savedAtMs === "number" ? envelope.savedAtMs : undefined;
+        } else {
+          // メタデータ追加前の生PersistedGameもそのまま復帰できるようにする。
+          restore = parsed;
+        }
+      }
     } catch {
       /* 壊れていれば新規で始める */
+    }
+    if (restore && typeof restore === "object" && "phase" in restore) {
+      setRestoredGame({
+        roomCode: savedRoomCode(),
+        phase: restore.phase as Phase,
+        ...(savedAtMs !== undefined ? { savedAtMs } : {}),
+      });
     }
 
     const session = new HostSession(
@@ -172,7 +205,10 @@ export function useHostGame(): HostConn {
         restore,
         onPersist: (data) => {
           try {
-            localStorage.setItem(SAVED_GAME_KEY, JSON.stringify(data));
+            localStorage.setItem(
+              SAVED_GAME_KEY,
+              JSON.stringify({ game: data, savedAtMs: Date.now() }),
+            );
           } catch {
             /* 保存できなくても進行は続く */
           }
@@ -303,6 +339,7 @@ export function useHostGame(): HostConn {
     join,
     roomCode,
     joinUrl,
+    restoredGame,
     ai,
     setAI,
     newRoom,

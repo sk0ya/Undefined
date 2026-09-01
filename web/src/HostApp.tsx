@@ -43,8 +43,9 @@ function scopeToRoom(state: Snapshot, room: RoomView | undefined): Snapshot {
 }
 
 export default function HostApp({ conn }: { conn: HostConn }) {
-  const { state, status, lastError, clearError, serverNow, send, roomCode } = conn;
+  const { state, status, lastError, clearError, serverNow, send, roomCode, restoredGame } = conn;
   const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [showRestoreNotice, setShowRestoreNotice] = useState(true);
 
   // ルームを開くまではゲーム画面を出さない(コードが決まらないと誰も入れない)
   if (!state || !roomCode) {
@@ -86,6 +87,9 @@ export default function HostApp({ conn }: { conn: HostConn }) {
           </span>
         </div>
       </header>
+      {restoredGame && showRestoreNotice && (
+        <RestoreNotice info={restoredGame} onClose={() => setShowRestoreNotice(false)} />
+      )}
       <HostPhaseControls state={state} send={send} serverNow={serverNow} />
       <main className="content wide">
         <HostCockpit state={state} serverNow={serverNow} onSelectRoom={setSelectedRoomId} />
@@ -103,6 +107,31 @@ export default function HostApp({ conn }: { conn: HostConn }) {
       <ErrorToast message={lastError} onClose={clearError} />
       <ConnBadge status={status} />
     </div>
+  );
+}
+
+function RestoreNotice({
+  info,
+  onClose,
+}: {
+  info: NonNullable<HostConn["restoredGame"]>;
+  onClose: () => void;
+}) {
+  return (
+    <aside className="restore-notice" role="status">
+      <div>
+        <strong>↩ 保存済みゲームを復帰しました</strong>
+        <span className="small">
+          コード {info.roomCode || "(旧保存データ)"} / {phaseLabel(info.phase)}
+          {info.savedAtMs
+            ? ` / 保存 ${new Date(info.savedAtMs).toLocaleString()}`
+            : " / 保存時刻は旧形式のため不明"}
+        </span>
+      </div>
+      <button className="ghost small-btn" onClick={onClose} aria-label="復帰通知を閉じる">
+        閉じる
+      </button>
+    </aside>
   );
 }
 

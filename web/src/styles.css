@@ -1070,6 +1070,22 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 .discussion-action-link:hover:not(:disabled) { border-color: var(--brand-400); background: #fff; }
 .discussion-action-count { color: var(--brand-600); font-size: 0.8rem; font-weight: 800; }
 
+.restore-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px auto 0;
+  padding: 10px 14px;
+  max-width: 1320px;
+  border: 1px solid var(--ok-line);
+  border-radius: var(--r-md);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.restore-notice div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.restore-notice button { flex-shrink: 0; margin: 0; }
+
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .tab {
   background: var(--surface);
@@ -1485,6 +1501,7 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
   .ready-bar { bottom: 8px; }
   .discussion-action-links { grid-template-columns: 1fr; }
   .discussion-action-head { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .restore-notice { align-items: flex-start; margin: 10px 12px 0; }
 }
 
 /* scrollbars (WebKit) */
