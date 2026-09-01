@@ -82,6 +82,9 @@ export default function HostApp({ conn }: { conn: HostConn }) {
           <span className="room-code-chip" title="プレイヤーが入力するルームコード">
             🔑 {roomCode}
           </span>
+          <span className="muted small host-selected-room" title="現在表示している対象ルーム">
+            対象: {room?.name ?? "全体"}
+          </span>
           <SoundToggle />
           <span className="muted small">
             {state.scenario ? state.scenario.clientName : "シナリオ未選択"}

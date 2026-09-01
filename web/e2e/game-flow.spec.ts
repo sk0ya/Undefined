@@ -252,6 +252,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       const cockpitShownAt = Date.now();
       await firstCockpitRoom.click();
       await expect(host.locator(".room-tab-active")).toContainText(firstRoomName);
+      await expect(host.locator(".host-selected-room")).toContainText(`対象: ${firstRoomName}`);
       expect(Date.now() - cockpitShownAt).toBeLessThan(5_000);
     } finally {
       await closeContext(hostContext);
