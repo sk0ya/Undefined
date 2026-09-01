@@ -34,10 +34,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
         uploadThroughput: 32 * 1024,
         connectionType: "cellular3g",
       });
-      await Promise.all([
-        joinAs(playerOne, roomCode, "プレイヤー1", baseURL),
-        joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
-      ]);
+    await Promise.all([
+      joinAs(playerOne, roomCode, "プレイヤー1", baseURL),
+      joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
+    ]);
       await slowNetwork.send("Network.emulateNetworkConditions", {
         offline: false,
         latency: 0,
@@ -148,6 +148,63 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(host.getByText("✓ Codexブリッジに接続できます")).toBeVisible();
     } finally {
       await closeContext(context);
+    }
+  });
+
+  test("hostはCodexの失敗後に手動採点へ切り替えられる", async ({ browser, baseURL }) => {
+    test.setTimeout(120_000);
+    const hostContext = await browser.newContext();
+    const playerContexts = await Promise.all([browser.newContext(), browser.newContext()]);
+    const host = await hostContext.newPage();
+    const players = await Promise.all(playerContexts.map((context) => context.newPage()));
+    host.on("dialog", (dialog) => void dialog.accept());
+    await host.addInitScript(() => {
+      localStorage.setItem(
+        "reqgame_ai",
+        JSON.stringify({
+          provider: "codex",
+          apiKey: "",
+          baseUrl: "",
+          model: "",
+          codexBridgeUrl: "http://127.0.0.1:8787",
+          remember: true,
+        }),
+      );
+    });
+    await host.route("http://127.0.0.1:8787/run", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "bridge unavailable" }),
+      }),
+    );
+
+    try {
+      await host.goto(`${baseURL}/#host`);
+      await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
+      const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
+      await Promise.all(players.map((player, index) => joinAs(player, roomCode, `手動採点プレイヤー${index + 1}`, baseURL)));
+      await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30_000 });
+
+      await host.locator("button.scenario-item").first().click();
+      await host.getByRole("button", { name: /ゲーム開始/ }).click();
+      for (const phase of ["ヒアリング・議論", "合意形成(投票)", "要件定義書の仕上げ", "結果発表"]) {
+        await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+        await expect(host.locator(".step.step-active .step-label")).toHaveText(phase);
+      }
+
+      await host.getByRole("button", { name: /AI採点を実行/ }).click();
+      await expect(host.getByText(/Codex実行エラー 503/)).toBeVisible();
+      await expect(host.getByRole("button", { name: /再試行/ })).toBeVisible();
+      await host.getByLabel("AIの回答(JSON)").fill(
+        JSON.stringify({ teamScore: 50, axes: [], players: [], overallComment: "手動採点", improvement: "" }),
+      );
+      await host.getByRole("button", { name: "回答を反映する" }).click();
+      await expect(host.getByText("✓ 反映しました")).toBeVisible();
+      await expect(host.locator(".ai-status-manual-done")).toHaveText("手動対応済み");
+    } finally {
+      await closeContext(hostContext);
+      await Promise.all(playerContexts.map(closeContext));
     }
   });
 
