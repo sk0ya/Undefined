@@ -34,10 +34,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
         uploadThroughput: 32 * 1024,
         connectionType: "cellular3g",
       });
-    await Promise.all([
-      joinAs(playerOne, roomCode, "プレイヤー1", baseURL),
-      joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
-    ]);
+      await Promise.all([
+        joinAs(playerOne, roomCode, "プレイヤー1", baseURL),
+        joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
+      ]);
       await slowNetwork.send("Network.emulateNetworkConditions", {
         offline: false,
         latency: 0,
