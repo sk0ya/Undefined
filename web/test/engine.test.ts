@@ -12,6 +12,7 @@ import { buildPhaseGuide } from "../src/game/phaseGuide";
 import { roomAttention, sortRoomsByAttention } from "../src/game/roomAttention";
 import { phaseTimerPreset, timerMode } from "../src/game/timerPresets";
 import { phaseTransitionConfirmation, phaseTransitionInfo } from "../src/game/phaseTransition";
+import { snapshotFixture } from "./fixtures/snapshots";
 import type { Scenario, Snapshot } from "../src/types";
 import restaurant from "../../scenarios/restaurant.json";
 import smartFactory from "../../scenarios/smart-factory.json";
@@ -619,6 +620,30 @@ test("壊れた保存データは無視する", () => {
   assert.equal(g.phase, "lobby");
   assert.equal(g.playerOrder.length, 0);
 });
+
+// ---- フェーズ別Snapshot fixture ----
+
+for (const phase of ["lobby", "briefing", "discussion", "voting", "finalize", "results"] as const) {
+  test(`代表Snapshot fixture(${phase})は必須境界を満たす`, () => {
+    const snapshot = snapshotFixture(phase);
+    assert.equal(snapshot.phase, phase);
+    assert.equal(snapshot.isHost, false);
+    assert.equal(snapshot.players.length, phase === "lobby" ? 0 : 4);
+    assert.ok(snapshot.timer);
+    if (phase === "lobby") {
+      assert.equal(snapshot.scenario, undefined);
+      assert.equal(snapshot.myRoomId, undefined);
+      return;
+    }
+    assert.ok(snapshot.scenario);
+    assert.ok(snapshot.myPlayerId);
+    assert.ok(snapshot.myRoomId);
+    assert.ok(snapshot.myRoomName);
+    assert.ok(snapshot.doc.length > 0);
+    assert.equal(snapshot.rooms, undefined);
+    assert.equal(snapshot.askQueue, undefined);
+  });
+}
 
 // ---- ステークホルダー型シナリオでも成立する ----
 
