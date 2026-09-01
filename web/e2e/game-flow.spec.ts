@@ -32,7 +32,11 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("ヒアリング・議論");
 
+      await playerOne.setViewportSize({ width: 390, height: 844 });
       await expect(playerOne.locator(".discussion-action-hub")).toBeVisible();
+      expect(
+        await playerOne.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+      ).toBe(true);
       await playerOne
         .locator(".discussion-action-hub")
         .getByRole("button", { name: /📝 要求カード/ })
