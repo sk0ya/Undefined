@@ -55,6 +55,7 @@ export interface ClientMessage {
 export type ServerMessage =
   | { type: "state"; state: Snapshot }
   | { type: "joined"; playerId?: string; token?: string; isHost?: boolean }
+  | { type: "ping" }
   | { type: "error"; message: string };
 
 export interface Actor {

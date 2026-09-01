@@ -20,6 +20,8 @@ const CODE_LEN = 6;
  * プロトコルを壊す変更をしたらここを上げると、旧版と衝突しなくなる。
  */
 const PEER_PREFIX = "reqgame-v1-";
+const HEARTBEAT_INTERVAL_MS = 5_000;
+const HEARTBEAT_TIMEOUT_MS = 15_000;
 
 export const peerIdForRoom = (code: string) => PEER_PREFIX + code.toUpperCase();
 
@@ -54,6 +56,7 @@ interface ClientConn {
   conn: DataConnection;
   playerId: string;
   joined: boolean;
+  lastSeenAt: number;
 }
 
 export interface HostOptions {
@@ -78,6 +81,7 @@ export class HostSession {
   private opts: HostOptions;
   private code = "";
   private broadcastTimer: number | null = null;
+  private heartbeatTimer: number | null = null;
   private destroyed = false;
   private idAttempts = 0;
 
@@ -119,6 +123,7 @@ export class HostSession {
       this.idAttempts = 0;
       this.ev.onStatus("open");
       this.ev.onRoom?.(this.code);
+      this.startHeartbeat();
       this.pushLocal();
     });
 
@@ -146,10 +151,11 @@ export class HostSession {
   }
 
   private accept(conn: DataConnection) {
-    const client: ClientConn = { conn, playerId: "", joined: false };
+    const client: ClientConn = { conn, playerId: "", joined: false, lastSeenAt: Date.now() };
     this.clients.add(client);
 
     conn.on("data", (raw) => {
+      client.lastSeenAt = Date.now();
       let msg: ClientMessage;
       try {
         msg = typeof raw === "string" ? JSON.parse(raw) : (raw as ClientMessage);
@@ -160,14 +166,38 @@ export class HostSession {
     });
 
     const drop = () => {
-      this.clients.delete(client);
-      if (client.playerId && !this.hasOtherConn(client)) {
-        this.engine.setConnected(client.playerId, false);
-        this.scheduleBroadcast();
-      }
+      this.dropClient(client);
     };
     conn.on("close", drop);
     conn.on("error", drop);
+  }
+
+  private dropClient(client: ClientConn) {
+    if (!this.clients.delete(client)) return;
+    if (client.playerId && !this.hasOtherConn(client)) {
+      this.engine.setConnected(client.playerId, false);
+      this.scheduleBroadcast();
+    }
+  }
+
+  private startHeartbeat() {
+    if (this.heartbeatTimer !== null) return;
+    this.heartbeatTimer = window.setInterval(() => {
+      const now = Date.now();
+      for (const client of [...this.clients]) {
+        if (!client.joined) continue;
+        if (now - client.lastSeenAt > HEARTBEAT_TIMEOUT_MS) {
+          this.dropClient(client);
+          try {
+            client.conn.close();
+          } catch {
+            /* すでに切断済み */
+          }
+          continue;
+        }
+        this.send(client, { type: "ping" });
+      }
+    }, HEARTBEAT_INTERVAL_MS);
   }
 
   /** 同じプレイヤーが別タブでも繋いでいるか(片方閉じても切断扱いにしないため) */
@@ -287,6 +317,7 @@ export class HostSession {
   destroy() {
     this.destroyed = true;
     if (this.broadcastTimer !== null) window.clearTimeout(this.broadcastTimer);
+    if (this.heartbeatTimer !== null) window.clearInterval(this.heartbeatTimer);
     for (const c of this.clients) {
       try {
         c.conn.close();
@@ -363,6 +394,7 @@ export class ClientSession {
       if (msg.type === "state") this.ev.onState(msg.state);
       else if (msg.type === "error") this.ev.onError(msg.message);
       else if (msg.type === "joined") this.onJoined?.(msg);
+      else if (msg.type === "ping") this.rawSend({ type: "pong" });
     });
 
     conn.on("close", () => {
