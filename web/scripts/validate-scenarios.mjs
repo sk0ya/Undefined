@@ -90,6 +90,21 @@ function validateScenario(file, scenario) {
       for (const requiredKey of requiredKeys) requiredString(file, item?.[requiredKey], `${label}.${requiredKey}`);
     }
   }
+  if (scenario.beats !== undefined) {
+    if (!Array.isArray(scenario.beats) || scenario.beats.length === 0) {
+      error(file, "beatsを指定する場合は1件以上必要です");
+    } else {
+      uniqueIds(file, scenario.beats, "beats");
+      for (const beat of scenario.beats) {
+        for (const key of ["id", "phase", "title", "trigger", "impact", "facilitatorCue", "counterfactual"]) {
+          requiredString(file, beat?.[key], `beats.${key}`);
+        }
+        if (!["導入", "探索", "圧力", "決断", "結果"].includes(beat?.phase)) {
+          error(file, "beats.phaseは導入・探索・圧力・決断・結果のいずれかが必要です");
+        }
+      }
+    }
+  }
   uniqueIds(file, scenario.titles, "titles");
   uniqueIds(file, scenario.rubric?.map((item) => ({ id: item?.name })), "rubric");
 

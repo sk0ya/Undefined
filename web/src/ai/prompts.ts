@@ -96,6 +96,17 @@ export function buildScorePrompt(g: GameEngine, roomId: string): string {
   }
   b.push(scenarioText(sc));
 
+  if (sc.beats?.length) {
+    b.push("\n# 因果チェーン(進行と振り返りの完全情報)");
+    b.push("プレイヤーの判断がどの事件と運用結果につながるかを意識して講評してください。");
+    for (const beat of sc.beats) {
+      b.push(
+        `- [${beat.phase}] ${beat.title} / 発生条件: ${oneLine(beat.trigger)} / 影響: ${oneLine(beat.impact)} / ` +
+          `進行の問い: ${oneLine(beat.facilitatorCue)} / 判断しなかった場合: ${oneLine(beat.counterfactual)}`,
+      );
+    }
+  }
+
   if (sc.npcs?.length) {
     b.push("\n# 世界の完全情報(NPCが持つ事情 — プレイヤーは質問で発見する必要があった)");
     for (const n of sc.npcs) {

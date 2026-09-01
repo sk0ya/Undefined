@@ -430,6 +430,7 @@ function HostPhaseContent({
             <HostProposalBoard state={scoped} send={send} />
           </div>
           <div>
+            <CausalChainPanel state={state} />
             <ScriptedEventsPanel state={state} send={send} />
             <AIPanel conn={conn} state={state} kinds={["event", "advice"]} roomId={room?.id} />
             <AISettings conn={conn} />
@@ -915,6 +916,35 @@ function VoteProgress({ state }: { state: Snapshot }) {
         ))}
         {total === 0 && <li className="muted">要求カードがありません</li>}
       </ul>
+    </div>
+  );
+}
+
+// ---- 因果チェーン(ホスト専用) ----
+
+function CausalChainPanel({ state }: { state: Snapshot }) {
+  const beats = state.scenario?.beats ?? [];
+  if (beats.length === 0) return null;
+  return (
+    <div className="card causal-chain">
+      <details>
+        <summary>
+          <strong>🔗 因果チェーン({beats.length}場面)</strong>
+        </summary>
+        <p className="small muted">イベントを出す前に、チームの判断とつながる場面を確認してください。</p>
+        {beats.map((beat) => (
+          <div key={beat.id} className="causal-beat">
+            <div className="causal-beat-head">
+              <span className="chip chip-cat">{beat.phase}</span>
+              <strong>{beat.title}</strong>
+            </div>
+            <div className="small"><b>発生条件:</b> {beat.trigger}</div>
+            <div className="small"><b>影響:</b> {beat.impact}</div>
+            <div className="small muted"><b>投げかけ:</b> {beat.facilitatorCue}</div>
+            <div className="small muted"><b>未対応時:</b> {beat.counterfactual}</div>
+          </div>
+        ))}
+      </details>
     </div>
   );
 }
