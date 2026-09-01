@@ -69,6 +69,11 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("ヒアリング・議論");
+      const eventIdeas = host.locator("details.ideas");
+      await eventIdeas.locator("summary").click();
+      await expect(eventIdeas).toContainText("発生条件:");
+      await expect(eventIdeas).toContainText("狙い:");
+      await expect(eventIdeas).toContainText("難易度:");
 
       await playerOne.setViewportSize({ width: 390, height: 844 });
       await expect(playerOne.locator(".discussion-action-hub")).toBeVisible();
