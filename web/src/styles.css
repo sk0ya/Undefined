@@ -1288,11 +1288,17 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 
 @media print {
   body { background: #fff; }
-  .topbar, .phase-stepper, .phase-banner, .phase-guide, .tabs,
-  .ready-bar, .conn-badge, .toasts, .error-toast, .discussion-action-hub {
-    display: none !important;
+  /* DocEditorの印刷ボタンから印刷すると、成果物だけを紙面に残す。 */
+  body:has(.print-document) > * { visibility: hidden !important; }
+  body:has(.print-document) .print-document,
+  body:has(.print-document) .print-document * { visibility: visible !important; }
+  body:has(.print-document) .print-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
   }
-  .content { max-width: none; padding: 0; }
   .doc-editor { border: 0; box-shadow: none; padding: 0; }
   .doc-editor .doc-editor-head button,
   .doc-editor > p,

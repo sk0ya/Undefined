@@ -1175,7 +1175,7 @@ export function DocEditor({
   const blank = state.doc.filter((s) => !s.content.trim()).length;
 
   return (
-    <div className="card doc-editor">
+    <div className="card doc-editor print-document">
       <div className="doc-editor-head">
         <h3>
           {heading ?? "📄 要件定義書エディタ"}
