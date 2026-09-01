@@ -132,6 +132,10 @@ function validateScenario(file, scenario) {
   if (!Array.isArray(scenario.eventIdeas) || scenario.eventIdeas.length < 3) {
     warn(file, "eventIdeasは3件以上を推奨します");
   } else {
+    const legacyIdeas = scenario.eventIdeas.filter((idea) => typeof idea === "string");
+    if (legacyIdeas.length > 0) {
+      warn(file, "eventIdeasは発生条件・狙い・難易度を持つオブジェクト形式が必要です");
+    }
     const structuredIdeas = scenario.eventIdeas.filter((idea) => idea && typeof idea === "object");
     uniqueIds(file, structuredIdeas, "eventIdeas");
     for (const idea of structuredIdeas) {
