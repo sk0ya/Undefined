@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AIKind, HostConn, PromptOpts } from "./useGame";
+import { aiEnabled, checkCodexBridge } from "./ai/client";
 import type { ClientMessage } from "./game/protocol";
 import type { Phase, QuestionView, RoomView, Snapshot, TimerState } from "./types";
 import { PHASES, phaseIndex, phaseLabel } from "./types";
@@ -630,55 +631,113 @@ function InviteCard({ conn }: { conn: HostConn }) {
 function AISettings({ conn }: { conn: HostConn }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(conn.ai);
-  const enabled = conn.ai.apiKey.trim().length > 0;
+  const [bridgeStatus, setBridgeStatus] = useState<"idle" | "checking" | "online" | "offline">("idle");
+  const enabled = aiEnabled(conn.ai);
+  const checkBridge = async () => {
+    setBridgeStatus("checking");
+    try {
+      await checkCodexBridge(draft.codexBridgeUrl);
+      setBridgeStatus("online");
+    } catch {
+      setBridgeStatus("offline");
+    }
+  };
   return (
     <div className="card ai-settings">
       <div className="doc-editor-head">
         <h3>🔑 AI設定</h3>
         <span className={enabled ? "chip chip-adopted" : "chip chip-pending"}>
-          {enabled ? "自動モード" : "手動モード(コピペ)"}
+          {conn.ai.provider === "codex" ? "Codexモード" : enabled ? "自動モード" : "手動モード(コピペ)"}
         </span>
       </div>
       <p className="small muted">
-        {enabled
-          ? "AIが採点やNPC回答を直接実行します。"
-          : "キー未設定でも遊べます。プロンプトをコピーしてChatGPTに貼り、返答を貼り戻してください。"}
+        {conn.ai.provider === "codex"
+          ? "host PCのCodexを画面から直接呼び出します。APIキーのコピペは不要です。"
+          : enabled
+            ? "AIが採点やNPC回答を直接実行します。"
+            : "キー未設定でも遊べます。プロンプトをコピーしてChatGPTに貼り、返答を貼り戻してください。"}
       </p>
       <button className="ghost small-btn" onClick={() => setOpen((v) => !v)}>
-        {open ? "閉じる" : enabled ? "キーを変更する" : "APIキーを設定する"}
+        {open ? "閉じる" : conn.ai.provider === "codex" ? "接続設定" : enabled ? "キーを変更する" : "APIキーを設定する"}
       </button>
       {open && (
         <div className="ai-settings-form">
-          <p className="small muted">
-            キーは<strong>このブラウザにだけ</strong>保存され、APIへ直接送られます。
-            プレイヤーには一切渡りません。共用PCでは「保存しない」を選んでください。
-          </p>
-          <input
-            type="password"
-            placeholder="APIキー(sk-...)"
-            value={draft.apiKey}
-            onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-          />
-          <div className="form-row">
-            <input
-              placeholder="ベースURL"
-              value={draft.baseUrl}
-              onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
-            />
-            <input
-              placeholder="モデル名"
-              value={draft.model}
-              onChange={(e) => setDraft({ ...draft, model: e.target.value })}
-            />
+          <div className="ai-provider-tabs" role="tablist" aria-label="AI接続方式">
+            <button
+              className={draft.provider === "codex" ? "small-btn" : "ghost small-btn"}
+              onClick={() => {
+                setDraft({ ...draft, provider: "codex" });
+                setBridgeStatus("idle");
+              }}
+            >
+              Codex(host PC)
+            </button>
+            <button
+              className={draft.provider === "api" ? "small-btn" : "ghost small-btn"}
+              onClick={() => setDraft({ ...draft, provider: "api" })}
+            >
+              OpenAI互換API
+            </button>
           </div>
-          <label className="auto-answer-toggle">
-            <input
-              type="checkbox"
-              checked={draft.remember}
-              onChange={(e) => setDraft({ ...draft, remember: e.target.checked })}
-            />
-            このブラウザに保存する(共用PCでは外す)
-          </label>
+          {draft.provider === "codex" ? (
+            <>
+              <p className="small muted">
+                host PCで一度だけ <code>cd web</code> → <code>npm run codex:bridge</code> を実行してください。
+                Codex CLIのログイン状態をそのまま使います。
+              </p>
+              <div className="form-row">
+                <input
+                  placeholder="CodexブリッジURL"
+                  value={draft.codexBridgeUrl}
+                  onChange={(e) => {
+                    setDraft({ ...draft, codexBridgeUrl: e.target.value });
+                    setBridgeStatus("idle");
+                  }}
+                />
+                <button className="ghost small-btn" onClick={checkBridge} disabled={bridgeStatus === "checking"}>
+                  {bridgeStatus === "checking" ? "確認中…" : "接続確認"}
+                </button>
+              </div>
+              {bridgeStatus === "online" && <p className="small ok-text">✓ Codexブリッジに接続できます</p>}
+              {bridgeStatus === "offline" && (
+                <p className="small error-text">⚠ 未接続です。ブリッジを起動してから再確認してください。</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="small muted">
+                キーは<strong>このブラウザにだけ</strong>保存され、APIへ直接送られます。プレイヤーには渡りません。
+              </p>
+              <input
+                type="password"
+                placeholder="APIキー(sk-...)"
+                value={draft.apiKey}
+                onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
+              />
+              <div className="form-row">
+                <input
+                  placeholder="ベースURL"
+                  value={draft.baseUrl}
+                  onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
+                />
+                <input
+                  placeholder="モデル名"
+                  value={draft.model}
+                  onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+          {draft.provider === "api" && (
+            <label className="auto-answer-toggle">
+              <input
+                type="checkbox"
+                checked={draft.remember}
+                onChange={(e) => setDraft({ ...draft, remember: e.target.checked })}
+              />
+              このブラウザに保存する(共用PCでは外す)
+            </label>
+          )}
           <div className="proposal-actions">
             <button
               className="small-btn"
@@ -689,20 +748,24 @@ function AISettings({ conn }: { conn: HostConn }) {
             >
               保存
             </button>
-            <button
-              className="ghost small-btn danger"
-              onClick={() => {
-                const cleared = { ...draft, apiKey: "" };
-                setDraft(cleared);
-                conn.setAI(cleared);
-              }}
-            >
-              キーを消す
-            </button>
+            {draft.provider === "api" && (
+              <button
+                className="ghost small-btn danger"
+                onClick={() => {
+                  const cleared = { ...draft, apiKey: "" };
+                  setDraft(cleared);
+                  conn.setAI(cleared);
+                }}
+              >
+                キーを消す
+              </button>
+            )}
           </div>
-          <p className="small muted">
-            ブラウザから直接呼ぶため、APIがCORSを許可している必要があります(OpenAIは対応)。
-          </p>
+          {draft.provider === "api" && (
+            <p className="small muted">
+              ブラウザから直接呼ぶため、APIがCORSを許可している必要があります(OpenAIは対応)。
+            </p>
+          )}
         </div>
       )}
     </div>

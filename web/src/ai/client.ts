@@ -1,23 +1,27 @@
-// OpenAI互換APIをホストのブラウザから直接呼ぶ。
+// ホストのAI呼び出し口。
 //
-// サーバーが無くなったため、APIキーはホスト本人のブラウザに保存し、そこから
-// 直接APIへ送る。キーはゲーム状態にもスナップショットにも一切入らないので、
-// プレイヤーへ渡ることはない。共用PCで使う場合はキーを保存しない設定を選べる。
+// 既存のOpenAI互換APIに加え、host PCで起動したCodex CLIブリッジにも対応する。
+// APIキーやブリッジURLはゲーム状態・スナップショットには一切入らない。
 
 const KEY_STORAGE = "reqgame_ai";
 
 export interface AIConfig {
+  provider: "codex" | "api";
   apiKey: string;
   baseUrl: string;
   model: string;
+  /** host PC上のCodexブリッジURL */
+  codexBridgeUrl: string;
   /** falseならlocalStorageに残さず、このタブを閉じたら消える */
   remember: boolean;
 }
 
 export const DEFAULT_AI: AIConfig = {
+  provider: "codex",
   apiKey: "",
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-5-mini",
+  codexBridgeUrl: "http://127.0.0.1:8787",
   remember: true,
 };
 
@@ -29,9 +33,12 @@ export function loadAIConfig(): AIConfig {
     const raw = localStorage.getItem(KEY_STORAGE);
     if (!raw) return { ...DEFAULT_AI, apiKey: sessionKey };
     const saved = JSON.parse(raw) as Partial<AIConfig>;
+    // provider追加前の保存データは、APIキーがあれば従来のAPIモードを維持する。
+    const provider = saved.provider ?? ((saved.apiKey ?? sessionKey).trim() ? "api" : DEFAULT_AI.provider);
     return {
       ...DEFAULT_AI,
       ...saved,
+      provider,
       apiKey: saved.remember === false ? sessionKey : (saved.apiKey ?? ""),
     };
   } catch {
@@ -59,10 +66,28 @@ export function clearAIConfig() {
   }
 }
 
-export const aiEnabled = (cfg: AIConfig) => cfg.apiKey.trim().length > 0;
+export const aiEnabled = (cfg: AIConfig) =>
+  cfg.provider === "codex" ? cfg.codexBridgeUrl.trim().length > 0 : cfg.apiKey.trim().length > 0;
+
+/** Codex CLIブリッジが起動しているかを確認する */
+export async function checkCodexBridge(baseUrl: string, signal?: AbortSignal): Promise<void> {
+  const url = baseUrl.replace(/\/+$/, "") + "/healthz";
+  let res: Response;
+  try {
+    res = await fetch(url, { signal });
+  } catch (e) {
+    throw new Error(
+      `Codexブリッジに接続できませんでした(${e instanceof Error ? e.message : String(e)})。` +
+        "host PCで npm run codex:bridge を起動してください",
+    );
+  }
+  if (!res.ok) throw new Error(`Codexブリッジの応答が異常です(${res.status})`);
+}
 
 /** チャット補完を1回投げて、本文だけ返す */
 export async function chat(cfg: AIConfig, prompt: string, signal?: AbortSignal): Promise<string> {
+  if (cfg.provider === "codex") return codexChat(cfg, prompt, signal);
+
   const url = cfg.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   let res: Response;
   try {
@@ -99,4 +124,33 @@ export async function chat(cfg: AIConfig, prompt: string, signal?: AbortSignal):
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("AI応答が空です");
   return content;
+}
+
+async function codexChat(cfg: AIConfig, prompt: string, signal?: AbortSignal): Promise<string> {
+  const url = cfg.codexBridgeUrl.replace(/\/+$/, "") + "/run";
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+      signal,
+    });
+  } catch (e) {
+    throw new Error(
+      `Codexブリッジに接続できませんでした(${e instanceof Error ? e.message : String(e)})。` +
+        "host PCで npm run codex:bridge を起動してください",
+    );
+  }
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Codex実行エラー ${res.status}: ${text.slice(0, 500)}`);
+  let data: { response?: string };
+  try {
+    data = JSON.parse(text) as { response?: string };
+  } catch {
+    throw new Error("Codexブリッジ応答の解析に失敗しました");
+  }
+  if (!data.response?.trim()) throw new Error("Codexの応答が空です");
+  return data.response;
 }

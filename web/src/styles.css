@@ -1156,6 +1156,7 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 .ai-settings { border-top: 3px solid var(--secret); }
 .ai-settings-form { margin-top: 10px; border-top: 1px dashed var(--ink-200); padding-top: 10px; }
 .ai-settings-form .auto-answer-toggle { margin: 8px 0; }
+.ai-provider-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 
 /* ---- タブのバッジ ------------------------------------------- */
 
