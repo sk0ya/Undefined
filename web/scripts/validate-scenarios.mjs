@@ -48,6 +48,13 @@ function validateScenario(file, scenario) {
   if (scenario.type !== undefined && scenario.type !== "hearing" && scenario.type !== "stakeholder") {
     error(file, `typeが不正です: ${scenario.type}`);
   }
+  if (!["初級", "標準", "上級"].includes(scenario.difficulty)) {
+    error(file, "difficultyは初級・標準・上級のいずれかが必要です");
+  }
+  requiredString(file, scenario.recommendedPlayers, "recommendedPlayers");
+  if (typeof scenario.recommendedMinutes !== "number" || scenario.recommendedMinutes <= 0) {
+    error(file, "recommendedMinutesは正の数が必要です");
+  }
   if (typeof scenario.id === "string") {
     if (scenarioIds.has(scenario.id)) error(file, `idが${scenarioIds.get(scenario.id)}と重複しています`);
     scenarioIds.set(scenario.id, file);
