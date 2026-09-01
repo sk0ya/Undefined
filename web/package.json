@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "esbuild test/engine.test.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/engine.test.mjs && node --test node_modules/.cache/engine.test.mjs",
+    "test": "esbuild test/engine.test.ts test/ai.test.ts --bundle --platform=node --format=esm --loader:.json=json --outdir=node_modules/.cache/reqgame-tests && node --test node_modules/.cache/reqgame-tests/engine.test.js node_modules/.cache/reqgame-tests/ai.test.js",
     "validate:scenarios": "node scripts/validate-scenarios.mjs",
     "validate:scenarios:strict": "node scripts/validate-scenarios.mjs --strict",
     "codex:bridge": "node scripts/codex-bridge.mjs",

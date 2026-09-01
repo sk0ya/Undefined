@@ -681,14 +681,17 @@ function AISettings({ conn }: { conn: HostConn }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(conn.ai);
   const [bridgeStatus, setBridgeStatus] = useState<"idle" | "checking" | "online" | "offline">("idle");
+  const [bridgeError, setBridgeError] = useState("");
   const enabled = aiEnabled(conn.ai);
   const checkBridge = async () => {
     setBridgeStatus("checking");
+    setBridgeError("");
     try {
       await checkCodexBridge(draft.codexBridgeUrl);
       setBridgeStatus("online");
-    } catch {
+    } catch (error) {
       setBridgeStatus("offline");
+      setBridgeError(error instanceof Error ? error.message : "接続確認に失敗しました");
     }
   };
   return (
@@ -717,6 +720,7 @@ function AISettings({ conn }: { conn: HostConn }) {
               onClick={() => {
                 setDraft({ ...draft, provider: "codex" });
                 setBridgeStatus("idle");
+                setBridgeError("");
               }}
             >
               Codex(host PC)
@@ -742,6 +746,7 @@ function AISettings({ conn }: { conn: HostConn }) {
                   onChange={(e) => {
                     setDraft({ ...draft, codexBridgeUrl: e.target.value });
                     setBridgeStatus("idle");
+                    setBridgeError("");
                   }}
                 />
                 <button className="ghost small-btn" onClick={checkBridge} disabled={bridgeStatus === "checking"}>
@@ -750,7 +755,7 @@ function AISettings({ conn }: { conn: HostConn }) {
               </div>
               {bridgeStatus === "online" && <p className="small ok-text">✓ Codexブリッジに接続できます</p>}
               {bridgeStatus === "offline" && (
-                <p className="small error-text">⚠ 未接続です。ブリッジを起動してから再確認してください。</p>
+                <p className="small error-text">⚠ {bridgeError || "未接続です。ブリッジを起動してから再確認してください。"}</p>
               )}
             </>
           ) : (

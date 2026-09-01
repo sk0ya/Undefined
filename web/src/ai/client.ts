@@ -4,6 +4,7 @@
 // APIキーやブリッジURLはゲーム状態・スナップショットには一切入らない。
 
 const KEY_STORAGE = "reqgame_ai";
+const CODEX_BRIDGE_CHECK_TIMEOUT_MS = 5_000;
 
 export interface AIConfig {
   provider: "codex" | "api";
@@ -72,16 +73,41 @@ export const aiEnabled = (cfg: AIConfig) =>
 /** Codex CLIブリッジが起動しているかを確認する */
 export async function checkCodexBridge(baseUrl: string, signal?: AbortSignal): Promise<void> {
   const url = baseUrl.replace(/\/+$/, "") + "/healthz";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CODEX_BRIDGE_CHECK_TIMEOUT_MS);
+  const abortFromCaller = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", abortFromCaller, { once: true });
+  }
   let res: Response;
   try {
-    res = await fetch(url, { signal });
+    res = await fetch(url, { signal: controller.signal });
   } catch (e) {
+    if (controller.signal.aborted && !signal?.aborted) {
+      throw new Error(
+        `Codexブリッジの接続確認が${CODEX_BRIDGE_CHECK_TIMEOUT_MS / 1000}秒でタイムアウトしました。` +
+          "ブリッジが起動しているか確認してください",
+      );
+    }
     throw new Error(
       `Codexブリッジに接続できませんでした(${e instanceof Error ? e.message : String(e)})。` +
         "host PCで npm run codex:bridge を起動してください",
     );
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
   if (!res.ok) throw new Error(`Codexブリッジの応答が異常です(${res.status})`);
+  let health: { ok?: unknown; service?: unknown };
+  try {
+    health = (await res.json()) as { ok?: unknown; service?: unknown };
+  } catch {
+    throw new Error("Codexブリッジのヘルスチェック応答を解析できません");
+  }
+  if (health.ok !== true || health.service !== "reqgame-codex-bridge") {
+    throw new Error("Codexブリッジではない応答を受け取りました");
+  }
 }
 
 /** チャット補完を1回投げて、本文だけ返す */
