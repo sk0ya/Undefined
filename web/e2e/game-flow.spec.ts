@@ -59,6 +59,9 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ブリーフィング");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("ブリーフィング");
+      await expect(playerOne.getByRole("heading", { name: "このフェーズの進め方" })).toBeVisible();
+      await expect(playerOne.getByText("自分のロール・公開プロフィール・秘密情報を読む")).toBeVisible();
+      await expect(playerOne.getByRole("button", { name: "🎭 あなたのロール" })).toBeVisible();
 
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
@@ -231,6 +234,13 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       }
       await expect(host.locator(".room-comparison")).toBeVisible();
       await expect(host.locator(".room-comparison-item")).toHaveCount(2);
+      await expect(host.locator(".cockpit-room")).toHaveCount(2);
+      const firstCockpitRoom = host.locator(".cockpit-room").first();
+      const firstRoomName = await firstCockpitRoom.locator("strong").innerText();
+      const cockpitShownAt = Date.now();
+      await firstCockpitRoom.click();
+      await expect(host.locator(".room-tab-active")).toContainText(firstRoomName);
+      expect(Date.now() - cockpitShownAt).toBeLessThan(5_000);
     } finally {
       await closeContext(hostContext);
       await Promise.all(playerContexts.map(closeContext));
