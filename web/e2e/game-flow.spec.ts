@@ -40,14 +40,22 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await playerOne.getByPlaceholder(/要求のタイトル/).fill("ブラウザE2Eの要求");
       await playerOne.getByRole("button", { name: "提出する" }).click();
       await expect(playerOne.getByText("ブラウザE2Eの要求")).toBeVisible();
+      await expect(playerOne.getByRole("button", { name: /📝 要求カード.*自分の提出 1/ })).toBeVisible();
+
+      await playerTwo.getByPlaceholder(/要求のタイトル/).fill("他メンバーからの要求");
+      await playerTwo.getByRole("button", { name: "提出する" }).click();
+      await expect(playerOne.getByText("他メンバーからの要求")).toBeVisible();
+      await expect(playerOne.getByRole("button", { name: /📝 要求カード.*新着 1.*自分の提出 1/ })).toBeVisible();
 
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("合意形成(投票)");
       await expect(playerTwo.locator(".phase-banner h2")).toHaveText("合意形成(投票)");
 
       for (const player of [playerOne, playerTwo]) {
-        await player.getByRole("button", { name: "🗳 投票" }).click();
-        await player.getByRole("button", { name: "👍 採用に賛成" }).click();
+        await player.getByRole("button", { name: /🗳 投票/ }).click();
+        const approveButtons = player.getByRole("button", { name: "👍 採用に賛成" });
+        await approveButtons.nth(0).click();
+        await approveButtons.nth(1).click();
       }
 
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();

@@ -188,6 +188,26 @@ function PlayerPhaseContent({
   const hearing = state.scenario?.type === "hearing";
   const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
   const [discussionTab, setDiscussionTab] = useState("📝 要求カード");
+  const [seenDiscussion, setSeenDiscussion] = useState<Record<string, Set<string>>>(() => ({
+    "🎤 ヒアリング": new Set(state.questions.map((q) => q.id)),
+    "📝 要求カード": new Set(state.proposals.map((p) => p.id)),
+  }));
+  const newQuestions = state.questions.filter(
+    (q) => !q.isMine && !seenDiscussion["🎤 ヒアリング"]?.has(q.id),
+  ).length;
+  const newProposals = state.proposals.filter(
+    (p) => p.authorId !== state.myPlayerId && !seenDiscussion["📝 要求カード"]?.has(p.id),
+  ).length;
+  const myProposals = state.proposals.filter((p) => p.authorId === state.myPlayerId).length;
+  const pendingQuestions = state.questions.filter((q) => q.pending || !q.answer).length;
+  const blankSections = state.doc.filter((section) => !section.content.trim()).length;
+  const openDiscussionTab = (label: string) => {
+    if (label === "🎤 ヒアリング" || label === "📝 要求カード") {
+      const ids = label === "🎤 ヒアリング" ? state.questions.map((q) => q.id) : state.proposals.map((p) => p.id);
+      setSeenDiscussion((prev) => ({ ...prev, [label]: new Set(ids) }));
+    }
+    setDiscussionTab(label);
+  };
   const roleTab: Tab = [
     "🎭 ロール",
     <RoleCard role={myRole} hearing={hearing} key="r" />,
@@ -197,9 +217,10 @@ function PlayerPhaseContent({
     state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null,
   ];
   // 議論中の未対応数はDiscussionActionHubと各タブに表示する。
-  const docTab = (heading?: string): Tab => [
+  const docTab = (heading?: string, badges?: TabBadge[]): Tab => [
     heading ? "📄 仕様書(最終確認)" : "📄 仕様書",
     <DocEditor state={state} send={send} heading={heading} serverNow={serverNow} lastError={lastError} key="d" />,
+    badges,
   ];
 
   switch (state.phase) {
@@ -228,26 +249,32 @@ function PlayerPhaseContent({
       return (
         <>
           <AnnouncementLog items={state.announcements} />
-          <DiscussionActionHub state={state} onOpen={setDiscussionTab} />
+          <DiscussionActionHub state={state} onOpen={openDiscussionTab} />
           <Tabs
             activeLabel={discussionTab}
-            onActiveLabelChange={setDiscussionTab}
+            onActiveLabelChange={openDiscussionTab}
             tabs={[
               ...(hasNPCs
                 ? ([
                     [
                       "🎤 ヒアリング",
                       <QuestionBoard state={state} send={send} key="q" />,
-                      state.questions.length || undefined,
+                      [
+                        ...(pendingQuestions > 0 ? [{ label: "未対応", count: pendingQuestions }] : []),
+                        ...(newQuestions > 0 ? [{ label: "新着", count: newQuestions }] : []),
+                      ],
                     ],
                   ] as Tab[])
                 : []),
               [
                 "📝 要求カード",
                 <ProposalWorkspace state={state} send={send} key="p" />,
-                state.proposals.length || undefined,
+                [
+                  ...(newProposals > 0 ? [{ label: "新着", count: newProposals }] : []),
+                  ...(myProposals > 0 ? [{ label: "自分の提出", count: myProposals }] : []),
+                ],
               ],
-              docTab(),
+              docTab(undefined, blankSections > 0 ? [{ label: "未対応", count: blankSections }] : []),
               roleTab,
               scenarioTab,
             ]}
@@ -264,7 +291,9 @@ function PlayerPhaseContent({
               [
                 "🗳 投票",
                 <VotingView state={state} send={send} key="v" />,
-                state.proposals.filter((p) => !p.myVote).length || undefined,
+                state.proposals.filter((p) => !p.myVote).length > 0
+                  ? [{ label: "未投票", count: state.proposals.filter((p) => !p.myVote).length }]
+                  : [],
               ],
               docTab(),
               roleTab,
@@ -630,8 +659,9 @@ function VotingView({
   );
 }
 
-/** [ラベル, 中身, バッジ数] */
-type Tab = [string, React.ReactNode, number?];
+/** [ラベル, 中身, 状態別バッジ] */
+type TabBadge = { label: string; count: number };
+type Tab = [string, React.ReactNode, TabBadge[]?];
 
 function Tabs({
   tabs,
@@ -651,7 +681,7 @@ function Tabs({
   return (
     <div>
       <div className="tabs">
-        {valid.map(([label, , badge], i) => (
+        {valid.map(([label, , badges], i) => (
           <button
             key={label}
             className={"tab" + (i === activeIdx ? " tab-active" : "")}
@@ -661,7 +691,11 @@ function Tabs({
             }}
           >
             {label}
-            {badge != null && badge > 0 && <span className="tab-badge">{badge}</span>}
+            {badges?.map((badge) => (
+              <span className="tab-badge" key={badge.label}>
+                {badge.label} {badge.count}
+              </span>
+            ))}
           </button>
         ))}
       </div>
