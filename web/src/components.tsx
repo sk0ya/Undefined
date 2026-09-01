@@ -10,6 +10,7 @@ import type {
   TimerState,
 } from "./types";
 import { PHASES, REACTIONS, phaseIndex } from "./types";
+import { buildPhaseGuide, type GuideTask } from "./game/phaseGuide";
 import type { ClientMessage } from "./game/protocol";
 import {
   isMuted,
@@ -138,6 +139,64 @@ export function PhaseBanner({ phase }: { phase: Phase }) {
       <h2>{p.label}</h2>
       <p>{p.desc}</p>
     </div>
+  );
+}
+
+// ---- フェーズガイド -----------------------------------------
+
+function GuideTaskList({ title, tasks }: { title: string; tasks: GuideTask[] }) {
+  return (
+    <section className="guide-section">
+      <h4>{title}</h4>
+      <ul className="guide-task-list">
+        {tasks.map((item) => (
+          <li key={item.label} className={`guide-task guide-task-${item.status}`}>
+            <span className="guide-task-mark" aria-hidden="true">
+              {item.status === "done" ? "✓" : item.status === "todo" ? "!" : "○"}
+            </span>
+            <span>
+              <span className="guide-task-label">{item.label}</span>
+              {item.count && <span className="guide-task-count">{item.count}</span>}
+              {item.note && <span className="guide-task-note">{item.note}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** 現在の目的・行動・完了条件を、タブより先に常に表示する。 */
+export function PhaseGuide({ state }: { state: Snapshot }) {
+  const guide = buildPhaseGuide(state);
+  return (
+    <section className="phase-guide" aria-labelledby="phase-guide-title">
+      <div className="phase-guide-head">
+        <div>
+          <div className="eyebrow">いまやること</div>
+          <h3 id="phase-guide-title">このフェーズの進め方</h3>
+          <p>{guide.purpose}</p>
+        </div>
+        <div className="phase-guide-next">
+          <span className="small muted">次に見る場所</span>
+          <strong>{guide.next}</strong>
+        </div>
+      </div>
+      <div className="phase-guide-grid">
+        <GuideTaskList title="必ず行うこと" tasks={guide.must} />
+        <GuideTaskList title="できれば行うこと" tasks={guide.nice} />
+      </div>
+      <div className="phase-guide-foot">
+        <div>
+          <span className="small muted">完了条件</span>
+          <strong>{guide.completion}</strong>
+        </div>
+        <div className="phase-guide-ready">
+          <span className="small muted">準備OKについて</span>
+          <strong>{guide.readyEffect}</strong>
+        </div>
+      </div>
+    </section>
   );
 }
 

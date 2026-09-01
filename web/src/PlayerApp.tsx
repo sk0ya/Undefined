@@ -12,6 +12,7 @@ import {
   ErrorToast,
   Leaderboard,
   PhaseBanner,
+  PhaseGuide,
   PhaseStepper,
   ProposalCard,
   QuestionBoard,
@@ -71,6 +72,7 @@ export default function PlayerApp({
       <PhaseStepper phase={state.phase} />
       <main className="content">
         <PhaseBanner phase={state.phase} />
+        <PhaseGuide state={state} />
         <PlayerPhaseContent
           state={state}
           send={send}

@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GameEngine, MAX_PLAYERS } from "../src/game/engine";
 import { applyMessage } from "../src/game/protocol";
+import { buildPhaseGuide } from "../src/game/phaseGuide";
 import type { Scenario, Snapshot } from "../src/types";
 import restaurant from "../../scenarios/restaurant.json";
 import smartFactory from "../../scenarios/smart-factory.json";
@@ -624,4 +625,53 @@ test("ステークホルダー型(NPCなし)でも通常どおり進行する", 
   assert.ok(snap.scenario!.roles.length >= 4);
   g.propose(ids[0], snap.scenario!.categories[0], "生産実績の自動収集", "");
   assert.equal(asPlayer(g, ids[1]).proposals.length, 1);
+});
+
+// ---- プレイヤー向けフェーズガイド ----
+
+test("フェーズガイドはプレイヤー向けSnapshotの未対応件数を表示する", () => {
+  const { g, ids } = startGame(["a", "b", "c", "d"]);
+  g.setPhase("discussion");
+  const before = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.equal(before.must.some((t) => t.label === "要求カードを1枚以上出す" && t.status === "todo"), true);
+  assert.equal(before.must.some((t) => t.label === "未回答の質問をなくす"), true);
+
+  g.propose(ids[0], "機能要件", "カード", "説明");
+  const room = g.roomOf(ids[0])!;
+  g.editDoc(room.id, room.doc[0].id, "本文", "a", false);
+  const after = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.equal(after.must.find((t) => t.label === "要求カードを1枚以上出す")?.status, "done");
+  assert.equal(after.must.find((t) => t.label === "仕様書の必須欄を埋める")?.count, `1/${room.doc.length}`);
+});
+
+test("フェーズガイドは投票完了と準備OKの説明をフェーズごとに切り替える", () => {
+  const { g, ids } = startGame(["a", "b", "c", "d"]);
+  g.setPhase("briefing");
+  g.setReady(ids[0], true);
+  const briefing = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.match(briefing.readyEffect, /自動では進みません/);
+  assert.equal(briefing.must.find((t) => t.label === "読み終わったら準備OKを押す")?.status, "done");
+
+  g.setPhase("discussion");
+  g.propose(ids[0], "機能要件", "カード", "説明");
+  g.setPhase("voting");
+  const voting = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.equal(voting.must.find((t) => t.label === "すべてのカードに採用・反対を投票する")?.status, "todo");
+  g.vote(ids[0], g.rooms[0].proposals[0].id, "approve");
+  const voted = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.equal(voted.must.find((t) => t.label === "すべてのカードに採用・反対を投票する")?.status, "done");
+});
+
+test("NPCなしのフェーズガイドは質問キューを要求せず、空の投票を警告する", () => {
+  const g = newGame();
+  const ids = seat(g, ["a", "b", "c", "d"]);
+  g.start("smart-factory");
+  g.setPhase("discussion");
+  const discussion = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.equal(discussion.must.some((t) => t.label.includes("未回答の質問")), false);
+  assert.equal(discussion.must.some((t) => t.label.includes("役割ごとの事実")), true);
+
+  g.setPhase("voting");
+  const voting = buildPhaseGuide(asPlayer(g, ids[0]));
+  assert.match(voting.readyEffect, /投票対象の要求カードがありません/);
 });

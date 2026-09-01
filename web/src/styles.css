@@ -227,6 +227,96 @@ small { font-weight: 500; }
 .phase-banner h2 { font-size: 1.45rem; font-weight: 800; margin-bottom: 0; letter-spacing: 0.01em; }
 .phase-banner p { color: var(--ink-500); margin-top: 3px; }
 
+/* ---- phase guide ------------------------------------------ */
+
+.phase-guide {
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  border: 1px solid var(--brand-100);
+  border-left: 4px solid var(--brand-500);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.phase-guide-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: start;
+}
+.phase-guide h3 { margin: 0; font-size: 1.08rem; }
+.phase-guide p { margin: 3px 0 0; color: var(--ink-500); }
+.eyebrow {
+  color: var(--brand-600);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.phase-guide-next {
+  flex: 0 1 310px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-100);
+}
+.phase-guide-next strong, .phase-guide-foot strong {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.phase-guide-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 16px;
+}
+.guide-section h4 { margin: 0 0 6px; }
+.guide-task-list { list-style: none; padding: 0; margin: 0; }
+.guide-task {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  padding: 5px 0;
+  color: var(--ink-700);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.guide-task-mark {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex: 0 0 19px;
+  height: 19px;
+  margin-top: 1px;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: 0.75rem;
+  border: 1px solid var(--ink-300);
+  color: var(--ink-500);
+}
+.guide-task-done .guide-task-mark { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok); }
+.guide-task-todo .guide-task-mark { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
+.guide-task-check .guide-task-mark { background: var(--brand-50); border-color: var(--brand-100); color: var(--brand-600); }
+.guide-task-done .guide-task-label { color: var(--ok); }
+.guide-task-count { margin-left: 7px; color: var(--ink-500); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.guide-task-note { display: block; color: var(--ink-500); font-size: 0.78rem; }
+.phase-guide-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  border-top: 1px solid var(--ink-200);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.phase-guide-ready { padding-left: 18px; border-left: 1px solid var(--ink-200); }
+@media (max-width: 640px) {
+  .phase-guide-head, .phase-guide-foot { display: block; }
+  .phase-guide-next { margin-top: 12px; }
+  .phase-guide-grid { grid-template-columns: 1fr; gap: 8px; }
+  .phase-guide-ready { border-left: 0; border-top: 1px solid var(--ink-200); margin-top: 12px; padding: 12px 0 0; }
+}
+
 /* ---- forms ------------------------------------------------- */
 
 input, select, textarea {
