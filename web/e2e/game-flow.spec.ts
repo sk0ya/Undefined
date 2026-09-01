@@ -10,6 +10,13 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     const playerOne = await playerOneContext.newPage();
     const playerTwo = await playerTwoContext.newPage();
     host.on("dialog", (dialog) => void dialog.accept());
+    // このE2EはAIなしの手動進行が成立することも検証する。
+    await host.addInitScript(() => {
+      localStorage.setItem(
+        "reqgame_ai",
+        JSON.stringify({ provider: "api", apiKey: "", remember: true }),
+      );
+    });
 
     try {
       await host.goto(`${baseURL}/#host`);
