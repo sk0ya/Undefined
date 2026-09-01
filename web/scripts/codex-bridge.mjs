@@ -1,5 +1,8 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -11,6 +14,7 @@ const port = Number(args.get("port") || process.env.REQGAME_CODEX_PORT || 8787);
 // GitHub Pages等の公開Originを使う場合は --origin=https://example.github.io を指定する。
 const allowedOrigin = args.get("origin") || process.env.REQGAME_CODEX_ORIGIN || "http://localhost:5173";
 const maxBodyBytes = 256 * 1024;
+const timeoutMs = positiveInteger(process.env.REQGAME_CODEX_TIMEOUT_MS, 120_000);
 
 function responseHeaders(origin, extra = {}) {
   return {
@@ -64,52 +68,72 @@ function parseAgentMessage(stdout) {
       // --json以外の行は、最後のフォールバック用に無視する。
     }
   }
-  return lastMessage || stdout.trim();
+  return lastMessage;
 }
 
-function runCodex(prompt) {
+async function runCodex(prompt) {
   const command = process.platform === "win32" ? "codex.cmd" : "codex";
   const commandArgs = [
     "exec",
     "--ephemeral",
+    "--ignore-user-config",
+    "--skip-git-repo-check",
     "--sandbox",
     "read-only",
     "--json",
     "Return only the final answer to the supplied game prompt.",
   ];
+  // ゲーム入力をCodexの作業ルートにあるリポジトリへ触れさせない。
+  const workdir = await mkdtemp(join(tmpdir(), "reqgame-codex-"));
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, commandArgs, {
-      cwd: process.cwd(),
-      env: process.env,
-      // Windowsのnpmコマンドは.cmdシムなのでshell経由で起動する。
-      shell: process.platform === "win32",
-      stdio: ["pipe", "pipe", "pipe"],
+  try {
+    return await new Promise((resolve, reject) => {
+      const child = spawn(command, commandArgs, {
+        cwd: workdir,
+        env: process.env,
+        // Windowsのnpmコマンドは.cmdシムなのでshell経由で起動する。
+        shell: process.platform === "win32",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        child.kill();
+        reject(new Error(`Codexの応答が${Math.ceil(timeoutMs / 1000)}秒以内に返りませんでした`));
+      }, timeoutMs);
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => { stdout += chunk; });
+      child.stderr.on("data", (chunk) => { stderr += chunk; });
+      child.stdin.on("error", () => {
+        // 子プロセスが先に終了した場合のEPIPEはclose側で報告する。
+      });
+      child.on("error", (error) => {
+        clearTimeout(timeout);
+        if (error.code === "ENOENT") {
+          reject(new Error("codex コマンドが見つかりません。Codex CLIをインストールしてログインしてください"));
+        } else {
+          reject(error);
+        }
+      });
+      child.on("close", (code) => {
+        clearTimeout(timeout);
+        if (timedOut) return;
+        if (code !== 0) {
+          reject(new Error(`codex exec が終了コード ${code} で終了しました: ${stderr.trim().slice(-1000)}`));
+          return;
+        }
+        const response = parseAgentMessage(stdout);
+        if (!response) reject(new Error("Codexの最終回答を取得できませんでした"));
+        else resolve(response);
+      });
+      child.stdin.end(prompt);
     });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", (error) => {
-      if (error.code === "ENOENT") {
-        reject(new Error("codex コマンドが見つかりません。Codex CLIをインストールしてログインしてください"));
-      } else {
-        reject(error);
-      }
-    });
-    child.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(`codex exec が終了コード ${code} で終了しました: ${stderr.trim().slice(-1000)}`));
-        return;
-      }
-      const response = parseAgentMessage(stdout);
-      if (!response) reject(new Error("Codexの応答が空です"));
-      else resolve(response);
-    });
-    child.stdin.end(prompt);
-  });
+  } finally {
+    await rm(workdir, { recursive: true, force: true });
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -150,3 +174,8 @@ server.listen(port, "127.0.0.1", () => {
   console.log(`Allowed origin: ${allowedOrigin}`);
   console.log("Stop with Ctrl+C");
 });
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
