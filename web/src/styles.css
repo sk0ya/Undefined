@@ -751,6 +751,10 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 .timer-controls { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .timer-controls input { width: 66px; margin: 0; text-align: center; }
 .timer-controls button { margin: 0; }
+.timer-recommended { font-weight: 700; white-space: nowrap; }
+.timer-presets-label { margin-left: 4px; white-space: nowrap; }
+.timer-main-action { white-space: nowrap; }
+.timer-expired-note { color: var(--ng); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
 
 .sound-toggle {
   background: rgba(255, 255, 255, 0.1);

@@ -536,6 +536,18 @@ export class GameEngine {
           totalMs: this.timer.totalMs,
         };
       }
+    } else if (action === "extend") {
+      const addedMs = (seconds > 0 ? seconds : 300) * 1000;
+      const currentMs = this.timer.running
+        ? Math.max(0, this.timer.endsAtMs - now)
+        : this.timer.remainingMs;
+      const totalMs = this.timer.totalMs + addedMs;
+      this.timer = {
+        running: true,
+        endsAtMs: now + currentMs + addedMs,
+        remainingMs: 0,
+        totalMs: totalMs > 0 ? totalMs : addedMs,
+      };
     } else if (action === "reset") {
       this.timer = { running: false, endsAtMs: 0, remainingMs: 0, totalMs: 0 };
     } else {

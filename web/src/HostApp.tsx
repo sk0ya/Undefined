@@ -4,6 +4,7 @@ import type { ClientMessage } from "./game/protocol";
 import type { Phase, QuestionView, RoomView, Snapshot, TimerState } from "./types";
 import { PHASES, phaseIndex, phaseLabel } from "./types";
 import { roomAttention, sortRoomsByAttention } from "./game/roomAttention";
+import { phaseTimerPreset, timerMode, TIMER_PRESETS } from "./game/timerPresets";
 import {
   AnnouncementLog,
   AnnouncementToasts,
@@ -82,7 +83,7 @@ export default function HostApp({ conn }: { conn: HostConn }) {
           </span>
         </div>
       </header>
-      <HostPhaseControls state={state} send={send} />
+      <HostPhaseControls state={state} send={send} serverNow={serverNow} />
       <main className="content wide">
         <HostCockpit state={state} serverNow={serverNow} onSelectRoom={setSelectedRoomId} />
         {state.phase !== "lobby" && rooms.length > 0 && (
@@ -218,9 +219,11 @@ function nextPhaseChecks(state: Snapshot): { label: string; ok: boolean }[] {
 function HostPhaseControls({
   state,
   send,
+  serverNow,
 }: {
   state: Snapshot;
   send: (m: ClientMessage) => void;
+  serverNow: () => number;
 }) {
   const idx = phaseIndex(state.phase);
   return (
@@ -248,7 +251,7 @@ function HostPhaseControls({
           </button>
         )}
         <ReadyReadout state={state} />
-        <TimerControls send={send} />
+        <TimerControls send={send} timer={state.timer} phase={state.phase} serverNow={serverNow} />
         <button
           className="ghost danger"
           onClick={() => {
@@ -282,14 +285,41 @@ function ReadyReadout({ state }: { state: Snapshot }) {
   );
 }
 
-const TIMER_PRESETS = [5, 10, 15, 20];
-
-function TimerControls({ send }: { send: (m: ClientMessage) => void }) {
+function TimerControls({
+  send,
+  timer,
+  phase,
+  serverNow,
+}: {
+  send: (m: ClientMessage) => void;
+  timer: TimerState;
+  phase: Phase;
+  serverNow: () => number;
+}) {
   const [min, setMin] = useState(10);
+  const mode = timerMode(timer, serverNow());
+  const recommended = phaseTimerPreset(phase);
   const start = (m: number) => send({ type: "timer", action: "start", seconds: m * 60 });
+  const mainAction = () => {
+    if (mode === "running") send({ type: "timer", action: "pause" });
+    else if (mode === "paused") send({ type: "timer", action: "start", seconds: 0 });
+    else if (mode === "over") send({ type: "timer", action: "extend", seconds: 300 });
+    else start(recommended);
+  };
   return (
     <div className="timer-controls">
-      {TIMER_PRESETS.map((m) => (
+      <span className="timer-recommended small muted">推奨 {recommended}分</span>
+      <button className="primary timer-main-action" onClick={mainAction}>
+        {mode === "running"
+          ? "⏸ 一時停止"
+          : mode === "paused"
+            ? "▶ 再開"
+            : mode === "over"
+              ? "＋5分延長"
+              : `▶ 開始(${recommended}分)`}
+      </button>
+      <span className="timer-presets-label small muted">時間を変更:</span>
+      {TIMER_PRESETS.filter((m) => m !== recommended).map((m) => (
         <button key={m} className="ghost small-btn" onClick={() => start(m)}>
           {m}分
         </button>
@@ -301,13 +331,8 @@ function TimerControls({ send }: { send: (m: ClientMessage) => void }) {
         value={min}
         onChange={(e) => setMin(Number(e.target.value))}
       />
-      <button onClick={() => start(min)}>⏱ 開始</button>
-      <button className="ghost" onClick={() => send({ type: "timer", action: "pause" })}>
-        一時停止
-      </button>
-      <button className="ghost" onClick={() => send({ type: "timer", action: "start", seconds: 0 })}>
-        再開
-      </button>
+      <button className="ghost small-btn" onClick={() => start(min)}>設定時間で開始</button>
+      {mode === "over" && <span className="timer-expired-note">時間切れ: 延長または次へ</span>}
       <button className="ghost" onClick={() => send({ type: "timer", action: "reset" })}>
         クリア
       </button>

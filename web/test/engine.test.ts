@@ -10,6 +10,7 @@ import { GameEngine, MAX_PLAYERS } from "../src/game/engine";
 import { applyMessage } from "../src/game/protocol";
 import { buildPhaseGuide } from "../src/game/phaseGuide";
 import { roomAttention, sortRoomsByAttention } from "../src/game/roomAttention";
+import { phaseTimerPreset, timerMode } from "../src/game/timerPresets";
 import type { Scenario, Snapshot } from "../src/types";
 import restaurant from "../../scenarios/restaurant.json";
 import smartFactory from "../../scenarios/smart-factory.json";
@@ -715,4 +716,24 @@ test("hostのルーム優先度は進行を止める状態から並べる", () =
     votesVisible: false,
   });
   assert.equal(roomAttention(normal, "discussion").level, "normal");
+});
+
+test("タイマーは停止・実行中・一時停止・時間切れを区別し、延長できる", () => {
+  const { g } = startGame();
+  assert.equal(phaseTimerPreset("discussion"), 15);
+  assert.equal(timerMode(g.timer, Date.now()), "idle");
+
+  g.timerAction("start", 60);
+  assert.equal(timerMode(g.timer, Date.now()), "running");
+  g.timerAction("pause");
+  assert.equal(timerMode(g.timer, Date.now()), "paused");
+  const before = g.timer.totalMs;
+
+  g.timerAction("start", 0);
+  g.timer.endsAtMs = Date.now() - 1;
+  assert.equal(timerMode(g.timer, Date.now()), "over");
+  g.timerAction("extend", 60);
+  assert.equal(g.timer.running, true);
+  assert.equal(g.timer.totalMs, before + 60_000);
+  assert.equal(timerMode(g.timer, Date.now()), "running");
 });
