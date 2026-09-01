@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { GameEngine, MAX_PLAYERS } from "../src/game/engine";
 import { applyMessage } from "../src/game/protocol";
 import { buildPhaseGuide } from "../src/game/phaseGuide";
+import { buildDecisionTrail, buildPlayerRetrospectives } from "../src/game/retrospective";
 import { roomAttention, sortRoomsByAttention } from "../src/game/roomAttention";
 import { phaseTimerPreset, timerMode } from "../src/game/timerPresets";
 import { phaseTransitionConfirmation, phaseTransitionInfo } from "../src/game/phaseTransition";
@@ -821,6 +822,34 @@ test("結果発表の次回の一手はhostが保存し、プレイヤーにも�
       { playerId: ids[0], isHost: false },
     ),
   );
+});
+
+test("結果発表の振り返りは質問・採用要求・仕様書の記録を集計する", () => {
+  const { g, ids } = startGame();
+  g.setPhase("discussion");
+  const question = g.ask(ids[0], g.scenario()!.npcs![0].id, "例外時はどうしますか?");
+  g.answerQuestion(question.id, "担当者が電話で確認します", "host");
+  const proposal = g.propose(ids[1], "運用", "例外時の確認", "担当者が確認する");
+  g.setProposalStatus(proposal.id, "adopted");
+  const room = g.roomOf(ids[0])!;
+  g.editDoc(room.id, room.doc[0].id, "目的を明文化", "host", true);
+  g.setPhase("results");
+
+  const state = asPlayer(g, ids[0]);
+  const players = buildPlayerRetrospectives(state);
+  assert.deepEqual(
+    players.find((player) => player.playerId === ids[0]),
+    { playerId: ids[0], name: "あき", questions: 1, proposals: 0, adopted: 0 },
+  );
+  assert.deepEqual(
+    players.find((player) => player.playerId === ids[1]),
+    { playerId: ids[1], name: "いつき", questions: 0, proposals: 1, adopted: 1 },
+  );
+  const trail = buildDecisionTrail(state);
+  assert.equal(trail.length, 3);
+  assert.match(trail[0].label, /あきの質問/);
+  assert.match(trail[1].label, /例外時の確認.*採用/);
+  assert.match(trail[2].label, /仕様書/);
 });
 
 test("投票中から結果へ直接移動すると投票を確定し、影響を確認できる", () => {

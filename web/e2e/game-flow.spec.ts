@@ -109,6 +109,8 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("結果発表");
       await expect(playerTwo.locator(".phase-banner h2")).toHaveText("結果発表");
+      await expect(host.getByText("判断材料として残った記録")).toBeVisible();
+      await expect(host.getByText("プレイヤー1: 質問 0件 / 要求カード 1件(採用 1件)")).toBeVisible();
 
       await host.reload();
       await expect(host.locator(".restore-notice")).toBeVisible({ timeout: 30_000 });
