@@ -58,7 +58,7 @@ Codexブリッジは`127.0.0.1:8787`だけで待ち受け、Codexを一時ディ
 
 ## 研修後のメモ
 
-次回改善のため、[host観察シート](HOST_OBSERVATION_SHEET.md)に次の4点だけ記録する。
+次回改善のため、[host観察シート](HOST_OBSERVATION_SHEET.md)に次の4点だけ記録する。実施手順と合否の目安は[Phase 4 ユーザビリティテスト手順](PHASE4_USER_TEST_PROTOCOL.md)を参照してください。
 
 - プレイヤーが最初の行動を始めるまでにかかった時間
 - hostが対応ルームを見つけるまでにかかった時間
