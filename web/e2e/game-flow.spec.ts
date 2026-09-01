@@ -97,6 +97,13 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(playerOne.getByRole("button", { name: /📝 要求カード.*新着 1.*自分の提出 1/ })).toBeVisible();
       await playerOne.locator(".tabs").getByRole("button", { name: /📄 仕様書/ }).click();
       await expect(playerOne.getByRole("button", { name: "要件定義書を印刷" })).toBeVisible();
+      const firstDocSection = playerOne.locator(".doc-section-edit").first();
+      const firstDocField = firstDocSection.locator("textarea");
+      const firstDocTitle = (await firstDocSection.locator("h4").innerText()).trim();
+      await expect(firstDocTitle).toMatch(/^\d+\./);
+      await expect(firstDocField).toHaveAccessibleName(firstDocTitle);
+      await firstDocField.fill("ブラウザE2Eで保存状態を確認");
+      await expect(firstDocSection.getByText(/✓ 保存済み/)).toBeVisible({ timeout: 5_000 });
       const downloadPromise = playerOne.waitForEvent("download");
       await playerOne.getByRole("button", { name: "Markdownを保存" }).click();
       const download = await downloadPromise;
