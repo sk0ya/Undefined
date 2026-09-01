@@ -8,7 +8,8 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     const playerTwoContext = await browser.newContext();
     const host = await hostContext.newPage();
     const playerOne = await playerOneContext.newPage();
-    const playerTwo = await playerTwoContext.newPage();
+    let playerTwo = await playerTwoContext.newPage();
+    let playerTwoReconnectContext: BrowserContext | null = null;
     host.on("dialog", (dialog) => void dialog.accept());
     // このE2EはAIなしの手動進行が成立することも検証する。
     await host.addInitScript(() => {
@@ -29,6 +30,14 @@ test.describe("ゲームの主要ブラウザフロー", () => {
         joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
       ]);
       await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30_000 });
+      const playerTwoStorage = await playerTwoContext.storageState();
+      await playerTwoContext.close();
+      await expect(host.locator(".player-tag.offline")).toContainText("プレイヤー2", { timeout: 30_000 });
+      playerTwoReconnectContext = await browser.newContext({ storageState: playerTwoStorage });
+      playerTwo = await playerTwoReconnectContext.newPage();
+      await playerTwo.goto(`${baseURL}/#${roomCode}`);
+      await expect(playerTwo.locator(".phase-banner h2")).toHaveText("ロビー", { timeout: 30_000 });
+      await expect(host.locator(".player-tag.offline")).toHaveCount(0, { timeout: 30_000 });
 
       await host.locator("button.scenario-item").first().click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
@@ -92,6 +101,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await closeContext(hostContext);
       await closeContext(playerOneContext);
       await closeContext(playerTwoContext);
+      if (playerTwoReconnectContext) await closeContext(playerTwoReconnectContext);
     }
   });
 
