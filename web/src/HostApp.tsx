@@ -344,6 +344,13 @@ function TimerControls({
   serverNow: () => number;
 }) {
   const [min, setMin] = useState(10);
+  const [, refreshTimer] = useState(0);
+  useEffect(() => {
+    if (!timer.running) return;
+    const delay = Math.max(0, timer.endsAtMs - serverNow()) + 50;
+    const id = window.setTimeout(() => refreshTimer((n) => n + 1), delay);
+    return () => window.clearTimeout(id);
+  }, [timer.running, timer.endsAtMs, serverNow]);
   const mode = timerMode(timer, serverNow());
   const recommended = phaseTimerPreset(phase);
   const start = (m: number) => send({ type: "timer", action: "start", seconds: m * 60 });

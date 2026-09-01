@@ -166,6 +166,29 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     }
   });
 
+  test("hostはタイマーの状態と時間切れ後の延長導線を確認できる", async ({ browser, baseURL }) => {
+    const context = await browser.newContext();
+    const host = await context.newPage();
+
+    try {
+      await host.goto(`${baseURL}/#host`);
+      await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
+      await expect(host.getByText("推奨 10分")).toBeVisible();
+
+      // 実時間を待たず、HTMLのmin属性に依存しない極小値で時間切れ状態を作る。
+      await host.getByLabel("タイマーの設定時間(分)").fill("0.016");
+      await host.getByRole("button", { name: "設定時間で開始" }).click();
+      await expect(host.getByRole("button", { name: "⏸ 一時停止" })).toBeVisible();
+      await expect(host.getByText("⏰ タイムアップ")).toBeVisible({ timeout: 5_000 });
+      await expect(host.getByText("時間切れ: 延長または次へ")).toBeVisible();
+
+      await host.getByRole("button", { name: "＋5分延長" }).click();
+      await expect(host.getByRole("button", { name: "⏸ 一時停止" })).toBeVisible();
+    } finally {
+      await closeContext(context);
+    }
+  });
+
   test("hostはCodexの失敗後に手動採点へ切り替えられる", async ({ browser, baseURL }) => {
     test.setTimeout(120_000);
     const hostContext = await browser.newContext();
