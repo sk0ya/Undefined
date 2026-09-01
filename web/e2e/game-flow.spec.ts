@@ -210,6 +210,39 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     }
   });
 
+  test("hostのフェーズジャンプは影響確認を表示する", async ({ browser, baseURL }) => {
+    const hostContext = await browser.newContext();
+    const playerContexts = await Promise.all([browser.newContext(), browser.newContext()]);
+    const host = await hostContext.newPage();
+    const players = await Promise.all(playerContexts.map((context) => context.newPage()));
+    let confirmation = "";
+    host.on("dialog", (dialog) => {
+      confirmation = dialog.message();
+      void dialog.accept();
+    });
+
+    try {
+      await host.goto(`${baseURL}/#host`);
+      await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
+      const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
+      await Promise.all(players.map((player, index) => joinAs(player, roomCode, `ジャンプ確認プレイヤー${index + 1}`, baseURL)));
+      await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30_000 });
+
+      await host.locator("button.scenario-item").first().click();
+      await host.getByRole("button", { name: /ゲーム開始/ }).click();
+      await expect(host.locator(".step.step-active .step-label")).toHaveText("ブリーフィング");
+
+      await host.locator(".stepper button").filter({ hasText: "結果発表" }).click();
+      expect(confirmation).toContain("ヒアリング・議論・合意形成(投票)・要件定義書の仕上げをスキップ");
+      expect(confirmation).toContain("タイマーをクリアします");
+      expect(confirmation).toContain("全員の準備OKをリセットします");
+      await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
+    } finally {
+      await closeContext(hostContext);
+      await Promise.all(playerContexts.map(closeContext));
+    }
+  });
+
   test("hostはCodexの失敗後に手動採点へ切り替えられる", async ({ browser, baseURL }) => {
     test.setTimeout(120_000);
     const hostContext = await browser.newContext();
