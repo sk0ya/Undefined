@@ -621,7 +621,7 @@ test("旧形式の保存データ(追加フィールドなし)からも復帰で
   g.propose(ids[0], "機能要件", "旧データでも残るカード", "説明");
   g.editDoc(room.id, room.doc[0].id, "旧データでも残る本文", "あき", false);
 
-  const legacy = structuredClone(g.serialize()) as Record<string, unknown>;
+  const legacy = structuredClone(g.serialize()) as unknown as Record<string, unknown>;
   // 後から追加されたフィールドが保存されていなかった時期の形を再現する。
   delete legacy.autoAnswer;
   for (const savedRoom of legacy.rooms as Record<string, unknown>[]) {
