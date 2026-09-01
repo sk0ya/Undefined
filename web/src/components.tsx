@@ -200,6 +200,61 @@ export function PhaseGuide({ state }: { state: Snapshot }) {
   );
 }
 
+/** 議論の主要導線をタブの外にも置き、未対応数から次の行動を選べるようにする。 */
+export function DiscussionActionHub({
+  state,
+  onOpen,
+}: {
+  state: Snapshot;
+  onOpen: (tabLabel: string) => void;
+}) {
+  const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
+  const pendingQuestions = state.questions.filter((q) => q.pending || !q.answer).length;
+  const blankSections = state.doc.filter((section) => !section.content.trim()).length;
+  const links = [
+    ...(hasNPCs
+      ? [
+          {
+            label: "🎤 ヒアリング",
+            action: pendingQuestions > 0 ? `未回答 ${pendingQuestions}件` : `質問 ${state.questions.length}件`,
+            detail: pendingQuestions > 0 ? "回答を待つ質問を確認" : "まず事実・例外を質問する",
+          },
+        ]
+      : []),
+    {
+      label: "📝 要求カード",
+      action: state.proposals.length > 0 ? `提出済み ${state.proposals.length}件` : "未提出 まず1枚",
+      detail: "チームの判断をカードに残す",
+    },
+    {
+      label: "📄 仕様書",
+      action: blankSections > 0 ? `未記入 ${blankSections}件` : "未記入なし",
+      detail: "採用した内容を具体的に書く",
+    },
+  ];
+  return (
+    <section className="discussion-action-hub" aria-label="議論の主要導線">
+      <div className="discussion-action-head">
+        <strong>次の一手</strong>
+        <span className="small muted">未対応の多いところから進められます</span>
+      </div>
+      <div className="discussion-action-links">
+        {links.map((link) => (
+          <button
+            key={link.label}
+            className="discussion-action-link"
+            onClick={() => onOpen(link.label)}
+          >
+            <strong>{link.label}</strong>
+            <span className="discussion-action-count">{link.action}</span>
+            <span className="small muted">{link.detail}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ---- お知らせ(イベント) ----
 
 export function AnnouncementToasts({ items }: { items: Announcement[] }) {

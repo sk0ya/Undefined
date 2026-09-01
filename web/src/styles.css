@@ -1045,6 +1045,31 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 
 /* ---- tabs -------------------------------------------------- */
 
+.discussion-action-hub {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--brand-100);
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--brand-50), #fff);
+}
+.discussion-action-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.discussion-action-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.discussion-action-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--ink-700);
+  border: 1px solid var(--ink-200);
+  text-align: left;
+}
+.discussion-action-link:hover:not(:disabled) { border-color: var(--brand-400); background: #fff; }
+.discussion-action-count { color: var(--brand-600); font-size: 0.8rem; font-weight: 800; }
+
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .tab {
   background: var(--surface);
@@ -1458,6 +1483,8 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
   .reaction-label { display: none; }
   .team-grid { grid-template-columns: 1fr; }
   .ready-bar { bottom: 8px; }
+  .discussion-action-links { grid-template-columns: 1fr; }
+  .discussion-action-head { align-items: flex-start; flex-direction: column; gap: 2px; }
 }
 
 /* scrollbars (WebKit) */

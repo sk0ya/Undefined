@@ -31,7 +31,11 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
       await expect(playerOne.locator(".phase-banner h2")).toHaveText("ヒアリング・議論");
 
-      await playerOne.getByRole("button", { name: "📝 要求カード" }).click();
+      await expect(playerOne.locator(".discussion-action-hub")).toBeVisible();
+      await playerOne
+        .locator(".discussion-action-hub")
+        .getByRole("button", { name: /📝 要求カード/ })
+        .click();
       await playerOne.getByPlaceholder(/要求のタイトル/).fill("ブラウザE2Eの要求");
       await playerOne.getByRole("button", { name: "提出する" }).click();
       await expect(playerOne.getByText("ブラウザE2Eの要求")).toBeVisible();

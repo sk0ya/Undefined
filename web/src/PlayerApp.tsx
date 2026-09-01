@@ -9,6 +9,7 @@ import {
   AnnouncementToasts,
   ConnBadge,
   DocEditor,
+  DiscussionActionHub,
   ErrorToast,
   Leaderboard,
   PhaseBanner,
@@ -182,6 +183,7 @@ function PlayerPhaseContent({
 }) {
   const hearing = state.scenario?.type === "hearing";
   const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
+  const [discussionTab, setDiscussionTab] = useState("📝 要求カード");
   const roleTab: Tab = [
     "🎭 ロール",
     <RoleCard role={myRole} hearing={hearing} key="r" />,
@@ -190,7 +192,7 @@ function PlayerPhaseContent({
     "📖 シナリオ",
     state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null,
   ];
-  // バッジは「何件あるか」で統一する。未記入数はDocEditor側で見出しに出す
+  // 議論中の未対応数はDiscussionActionHubと各タブに表示する。
   const docTab = (heading?: string): Tab => [
     heading ? "📄 仕様書(最終確認)" : "📄 仕様書",
     <DocEditor state={state} send={send} heading={heading} serverNow={serverNow} lastError={lastError} key="d" />,
@@ -222,7 +224,10 @@ function PlayerPhaseContent({
       return (
         <>
           <AnnouncementLog items={state.announcements} />
+          <DiscussionActionHub state={state} onOpen={setDiscussionTab} />
           <Tabs
+            activeLabel={discussionTab}
+            onActiveLabelChange={setDiscussionTab}
             tabs={[
               ...(hasNPCs
                 ? ([
@@ -616,14 +621,21 @@ function VotingView({
 /** [ラベル, 中身, バッジ数] */
 type Tab = [string, React.ReactNode, number?];
 
-function Tabs({ tabs }: { tabs: Tab[] }) {
+function Tabs({
+  tabs,
+  activeLabel,
+  onActiveLabelChange,
+}: {
+  tabs: Tab[];
+  activeLabel?: string;
+  onActiveLabelChange?: (label: string) => void;
+}) {
   const valid = useMemo(() => tabs.filter(([, node]) => node != null), [tabs]);
-  const [activeLabel, setActiveLabel] = useState(valid[0]?.[0] ?? "");
+  const [internalActiveLabel, setInternalActiveLabel] = useState(valid[0]?.[0] ?? "");
+  const selectedLabel = activeLabel ?? internalActiveLabel;
   // タブ構成はフェーズで変わるので、位置ではなくラベルで選択を保持する
-  const activeIdx = Math.max(
-    0,
-    valid.findIndex(([label]) => label === activeLabel),
-  );
+  const foundIdx = valid.findIndex(([label]) => label === selectedLabel);
+  const activeIdx = foundIdx >= 0 ? foundIdx : 0;
   return (
     <div>
       <div className="tabs">
@@ -631,7 +643,10 @@ function Tabs({ tabs }: { tabs: Tab[] }) {
           <button
             key={label}
             className={"tab" + (i === activeIdx ? " tab-active" : "")}
-            onClick={() => setActiveLabel(label)}
+            onClick={() => {
+              setInternalActiveLabel(label);
+              onActiveLabelChange?.(label);
+            }}
           >
             {label}
             {badge != null && badge > 0 && <span className="tab-badge">{badge}</span>}
