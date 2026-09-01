@@ -123,6 +123,28 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     }
   });
 
+  test("hostはCodexブリッジの接続状態を画面で確認できる", async ({ browser, baseURL }) => {
+    const context = await browser.newContext();
+    const host = await context.newPage();
+    await host.route("http://127.0.0.1:8787/healthz", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, service: "reqgame-codex-bridge" }),
+      }),
+    );
+
+    try {
+      await host.goto(`${baseURL}/#host`);
+      await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
+      await host.getByRole("button", { name: "接続設定" }).click();
+      await host.getByRole("button", { name: "接続確認" }).click();
+      await expect(host.getByText("✓ Codexブリッジに接続できます")).toBeVisible();
+    } finally {
+      await closeContext(context);
+    }
+  });
+
   test("複数ルームの結果発表で進め方を比較できる", async ({ browser, baseURL }) => {
     test.setTimeout(120_000);
     const hostContext = await browser.newContext();
