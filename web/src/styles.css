@@ -1159,6 +1159,8 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 .ai-provider-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .causal-beat { border-top: 1px solid var(--ink-100); padding: 9px 0; display: grid; gap: 3px; }
 .causal-beat-head { display: flex; align-items: center; gap: 6px; }
+.retrospective-card h4 { margin-bottom: 6px; }
+.retro-action { background: var(--brand-50); border-left: 3px solid var(--brand-500); padding: 9px 12px; }
 
 /* ---- タブのバッジ ------------------------------------------- */
 

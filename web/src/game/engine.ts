@@ -97,6 +97,7 @@ export interface RoomState {
   questions: QuestionState[];
   doc: DocSection[];
   score: ScoreResult | null;
+  retrospectiveAction?: string;
 }
 
 /** localStorageに保存して、ホストがリロードしても続きから遊べるようにする */
@@ -288,6 +289,7 @@ export class GameEngine {
         questions: [],
         doc: sc.docTemplate.map((t) => ({ id: t.id, title: t.title, content: "" })),
         score: null,
+        retrospectiveAction: "",
       };
       const roleIdx = shuffle(sc.roles.map((_, k) => k));
       for (let s = 0; s < size; s++) {
@@ -559,6 +561,15 @@ export class GameEngine {
     this.announcements.push({ id: newId(), title, body, at: new Date().toISOString() });
   }
 
+  setRetrospective(roomId: string, action: string) {
+    if (this.phase !== "results") fail("振り返りは結果発表で記録できます");
+    const room = this.roomById(roomId);
+    if (!room) fail("ルームが見つかりません");
+    action = action.trim();
+    if (action.length > 240) fail("次回の一手は240文字以内で入力してください");
+    room.retrospectiveAction = action;
+  }
+
   // ---- 採点結果の適用 ----
 
   applyScore(roomId: string, sr: ScoreResult) {
@@ -699,6 +710,7 @@ export class GameEngine {
       questions: room.questions.map((q) => this.questionView(room, q, viewerId)),
       doc: room.doc.map((s) => ({ ...s })),
       score: withScore ? (room.score ?? undefined) : undefined,
+      retrospectiveAction: room.retrospectiveAction ?? "",
     };
   }
 
@@ -752,6 +764,7 @@ export class GameEngine {
         snap.questions = rv.questions;
         snap.doc = rv.doc;
         snap.score = rv.score;
+        snap.retrospectiveAction = rv.retrospectiveAction;
       }
     }
 

@@ -340,6 +340,7 @@ export interface RoomView {
   questions: QuestionView[];
   doc: DocSection[];
   score?: ScoreResult;
+  retrospectiveAction?: string;
 }
 
 export interface LeaderboardEntry {
@@ -364,6 +365,8 @@ export interface Snapshot {
   announcements: Announcement[];
   timer: TimerState;
   score?: ScoreResult;
+  /** 結果発表でhostが記録した、チームの次回の一手 */
+  retrospectiveAction?: string;
   rooms?: RoomView[];
   leaderboard?: LeaderboardEntry[];
   scenarios?: ScenarioSummary[];

@@ -717,9 +717,11 @@ function TeamScoreReveal({ teamScore }: { teamScore: number }) {
   );
 }
 
-export function ResultsView({ state }: { state: Snapshot }) {
+export function ResultsView({ state, send }: { state: Snapshot; send?: (m: ClientMessage) => void }) {
   const score = state.score;
   const sc = state.scenario;
+  const [nextAction, setNextAction] = useState(state.retrospectiveAction ?? "");
+  useEffect(() => setNextAction(state.retrospectiveAction ?? ""), [state.retrospectiveAction]);
 
   const playerCards = state.players
     .filter((p) => p.roleId && (!state.myRoomId || p.roomId === state.myRoomId))
@@ -775,6 +777,83 @@ export function ResultsView({ state }: { state: Snapshot }) {
           <p className="muted">AI採点はまだ実行されていません。秘密の勝利条件を公開します。</p>
         </div>
       )}
+
+      <h3 className="section-title">🧭 振り返り</h3>
+      <div className="card retrospective-card">
+        <p className="small muted">
+          得点だけでなく、どんな質問・要求・判断が結果につながったかをチームで確認しましょう。
+        </p>
+        <h4>判断の足跡</h4>
+        <ul className="small">
+          {state.players.map((p) => {
+            const asked = state.questions.filter((q) => q.askerId === p.id).length;
+            const proposals = state.proposals.filter((proposal) => proposal.authorId === p.id);
+            const adopted = proposals.filter((proposal) => proposal.status === "adopted").length;
+            return (
+              <li key={p.id}>
+                <strong>{p.name}</strong>: 質問 {asked}件 / 要求カード {proposals.length}件(採用 {adopted}件)
+              </li>
+            );
+          })}
+          {state.players.length === 0 && <li>参加者の記録はありません</li>}
+        </ul>
+
+        {score?.hiddenReqs && score.hiddenReqs.some((req) => !req.discovered) && (
+          <>
+            <h4>見落とした要件を、誰に聞けたか</h4>
+            <ul className="small">
+              {score.hiddenReqs.filter((req) => !req.discovered).map((req) => (
+                <li key={req.id}>
+                  <strong>{req.text ?? req.id}</strong>
+                  {req.comment && <div className="muted">→ {req.comment}</div>}
+                </li>
+              ))}
+            </ul>
+            {sc?.beats?.find((beat) => beat.phase === "探索") && (
+              <p className="small muted">
+                次回の問い直し: {sc.beats.find((beat) => beat.phase === "探索")?.facilitatorCue}
+              </p>
+            )}
+          </>
+        )}
+
+        {score?.testCases && score.testCases.some((test) => test.result === "fail") && (
+          <>
+            <h4>実運用テストで起きた事故</h4>
+            <ul className="small">
+              {score.testCases.filter((test) => test.result === "fail").map((test) => (
+                <li key={test.id}>
+                  <strong>{test.title ?? test.id}</strong>: {test.comment}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <h4>次回の一手(チームで1つ)</h4>
+        {send ? (
+          <>
+            <textarea
+              rows={2}
+              maxLength={240}
+              placeholder="例: 例外時の運用を必ず1つ聞いてから、数値付きで要件を書く"
+              value={nextAction}
+              onChange={(e) => setNextAction(e.target.value)}
+            />
+            <button
+              className="small-btn"
+              disabled={!nextAction.trim() || nextAction.trim() === (state.retrospectiveAction ?? "")}
+              onClick={() => send({ type: "set_retrospective", roomId: state.myRoomId, retrospectiveAction: nextAction })}
+            >
+              次回の一手を保存
+            </button>
+          </>
+        ) : state.retrospectiveAction ? (
+          <p className="prewrap retro-action">{state.retrospectiveAction}</p>
+        ) : (
+          <p className="small muted">hostが記録中です。</p>
+        )}
+      </div>
 
       {score?.testCases && score.testCases.length > 0 && (
         <>

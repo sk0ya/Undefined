@@ -737,3 +737,22 @@ test("タイマーは停止・実行中・一時停止・時間切れを区別�
   assert.equal(g.timer.totalMs, before + 60_000);
   assert.equal(timerMode(g.timer, Date.now()), "running");
 });
+
+test("結果発表の次回の一手はhostが保存し、プレイヤーにも公開される", () => {
+  const { g, ids } = startGame();
+  g.setPhase("results");
+  applyMessage(
+    g,
+    { type: "set_retrospective", roomId: g.rooms[0].id, retrospectiveAction: "例外ケースを先に1つ聞く" },
+    { playerId: "", isHost: true },
+  );
+  assert.equal(asHost(g).rooms![0].retrospectiveAction, "例外ケースを先に1つ聞く");
+  assert.equal(asPlayer(g, ids[0]).retrospectiveAction, "例外ケースを先に1つ聞く");
+  assert.throws(() =>
+    applyMessage(
+      g,
+      { type: "set_retrospective", roomId: g.rooms[0].id, retrospectiveAction: "不正" },
+      { playerId: ids[0], isHost: false },
+    ),
+  );
+});

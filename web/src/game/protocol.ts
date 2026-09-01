@@ -49,6 +49,7 @@ export interface ClientMessage {
   questionId?: string;
   answer?: string;
   enabled?: boolean;
+  retrospectiveAction?: string;
 }
 
 export type ServerMessage =
@@ -185,6 +186,11 @@ export function applyMessage(
     case "announce":
       if (!host) notHost();
       g.announce(m.title ?? "", m.body ?? "");
+      break;
+
+    case "set_retrospective":
+      if (!host) notHost();
+      g.setRetrospective(m.roomId ?? "", m.retrospectiveAction ?? "");
       break;
 
     case "remove_player":

@@ -35,6 +35,7 @@ function scopeToRoom(state: Snapshot, room: RoomView | undefined): Snapshot {
     questions: room.questions,
     doc: room.doc,
     score: room.score,
+    retrospectiveAction: room.retrospectiveAction,
     myRoomId: room.id,
     myRoomName: room.name,
   };
@@ -487,7 +488,7 @@ function HostPhaseContent({
           {!scoped.score && (
             <AIPanel conn={conn} state={state} kinds={["score"]} roomId={room?.id} />
           )}
-          <ResultsView state={scoped} />
+          <ResultsView state={scoped} send={send} />
         </div>
       );
   }
