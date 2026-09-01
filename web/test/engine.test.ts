@@ -184,10 +184,14 @@ test("プレイヤーには隠れ要件・テストケース・イベント台�
   assert.equal(snap.scenario!.testCases, undefined);
   assert.equal(snap.scenario!.scriptedEvents, undefined);
   assert.equal(snap.scenario!.eventIdeas, undefined);
+  assert.equal(snap.scenario!.beats, undefined);
+  assert.equal(snap.scenario!.facilitation, undefined);
 
   const hostSnap = asHost(g);
   assert.ok((hostSnap.scenario!.hiddenRequirements?.length ?? 0) > 0);
   assert.ok((hostSnap.scenario!.testCases?.length ?? 0) > 0);
+  assert.equal(hostSnap.scenario!.beats?.length, 5);
+  assert.equal(hostSnap.scenario!.facilitation?.hints.length, 3);
 });
 
 test("結果発表フェーズですべて公開される", () => {

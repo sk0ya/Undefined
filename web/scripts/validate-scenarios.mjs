@@ -105,6 +105,20 @@ function validateScenario(file, scenario) {
       }
     }
   }
+  if (scenario.facilitation !== undefined) {
+    const support = scenario.facilitation;
+    for (const key of ["opening30", "opening120"]) requiredString(file, support?.[key], `facilitation.${key}`);
+    if (!Array.isArray(support?.hints) || support.hints.length !== 3) {
+      error(file, "facilitation.hintsは3段階の配列が必要です");
+    } else {
+      support.hints.forEach((hint, index) => requiredString(file, hint, `facilitation.hints[${index}]`));
+    }
+    if (!Array.isArray(support?.shortRoute) || support.shortRoute.length === 0) {
+      error(file, "facilitation.shortRouteは1件以上必要です");
+    } else {
+      support.shortRoute.forEach((step, index) => requiredString(file, step, `facilitation.shortRoute[${index}]`));
+    }
+  }
   uniqueIds(file, scenario.titles, "titles");
   uniqueIds(file, scenario.rubric?.map((item) => ({ id: item?.name })), "rubric");
 

@@ -112,6 +112,13 @@ export interface ScenarioBeat {
   counterfactual: string;
 }
 
+export interface FacilitationSupport {
+  opening30: string;
+  opening120: string;
+  hints: [string, string, string];
+  shortRoute: string[];
+}
+
 export interface RubricItem {
   name: string;
   max: number;
@@ -166,6 +173,7 @@ export interface Scenario {
   difficulty?: "初級" | "標準" | "上級";
   recommendedPlayers?: string;
   recommendedMinutes?: number;
+  facilitation?: FacilitationSupport;
   eventIdeas?: (string | EventIdea)[];
   beats?: ScenarioBeat[];
   npcs?: NPC[];
@@ -191,6 +199,7 @@ export interface ScenarioView {
   difficulty?: "初級" | "標準" | "上級";
   recommendedPlayers?: string;
   recommendedMinutes?: number;
+  facilitation?: FacilitationSupport;
   eventIdeas?: (string | EventIdea)[];
   beats?: ScenarioBeat[];
   docTemplate: DocTemplateSection[];

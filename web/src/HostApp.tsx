@@ -431,6 +431,7 @@ function HostPhaseContent({
             <HostProposalBoard state={scoped} send={send} />
           </div>
           <div>
+            <FacilitationPanel state={state} />
             <CausalChainPanel state={state} />
             <ScriptedEventsPanel state={state} send={send} />
             <AIPanel conn={conn} state={state} kinds={["event", "advice"]} roomId={room?.id} />
@@ -945,6 +946,32 @@ function CausalChainPanel({ state }: { state: Snapshot }) {
             <div className="small muted"><b>未対応時:</b> {beat.counterfactual}</div>
           </div>
         ))}
+      </details>
+    </div>
+  );
+}
+
+// ---- ファシリテーション支援(ホスト専用) ----
+
+function FacilitationPanel({ state }: { state: Snapshot }) {
+  const support = state.scenario?.facilitation;
+  if (!support) return null;
+  return (
+    <div className="card facilitation-panel">
+      <details>
+        <summary><strong>🗣 ファシリ進行メモ</strong></summary>
+        <h4>開始前の読み上げ(30秒)</h4>
+        <p className="small prewrap">{support.opening30}</p>
+        <h4>開始前の読み上げ(2分)</h4>
+        <p className="small prewrap">{support.opening120}</p>
+        <h4>止まったときのヒント</h4>
+        <ol className="small facilitator-hints">
+          {support.hints.map((hint, index) => <li key={index}>{hint}</li>)}
+        </ol>
+        <h4>時間不足時の短縮ルート</h4>
+        <ol className="small">
+          {support.shortRoute.map((step, index) => <li key={index}>{step}</li>)}
+        </ol>
       </details>
     </div>
   );

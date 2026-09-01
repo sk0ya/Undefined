@@ -809,6 +809,7 @@ export class GameEngine {
         roles: [],
       };
       if (isHost) {
+        sv.facilitation = sc.facilitation;
         sv.eventIdeas = sc.eventIdeas;
         sv.beats = sc.beats;
         sv.scriptedEvents = sc.scriptedEvents;
