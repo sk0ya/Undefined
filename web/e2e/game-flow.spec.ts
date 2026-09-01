@@ -10,6 +10,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
     const playerOne = await playerOneContext.newPage();
     let playerTwo = await playerTwoContext.newPage();
     let playerTwoReconnectContext: BrowserContext | null = null;
+    const slowNetwork = await playerOneContext.newCDPSession(playerOne);
     host.on("dialog", (dialog) => void dialog.accept());
     // このE2EはAIなしの手動進行が成立することも検証する。
     await host.addInitScript(() => {
@@ -25,10 +26,25 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
       expect(roomCode).toHaveLength(6);
 
+      await slowNetwork.send("Network.enable");
+      await slowNetwork.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: 300,
+        downloadThroughput: 64 * 1024,
+        uploadThroughput: 32 * 1024,
+        connectionType: "cellular3g",
+      });
       await Promise.all([
         joinAs(playerOne, roomCode, "プレイヤー1", baseURL),
         joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
       ]);
+      await slowNetwork.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: 0,
+        downloadThroughput: -1,
+        uploadThroughput: -1,
+        connectionType: "wifi",
+      });
       await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30_000 });
       const playerTwoStorage = await playerTwoContext.storageState();
       await playerTwoContext.close();
