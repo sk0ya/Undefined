@@ -102,6 +102,15 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       const firstDocTitle = (await firstDocSection.locator("h4").innerText()).trim();
       await expect(firstDocTitle).toMatch(/^\d+\./);
       await expect(firstDocField).toHaveAccessibleName(firstDocTitle);
+      await playerTwo.locator(".tabs").getByRole("button", { name: /📄 仕様書/ }).click();
+      const secondDocSection = playerTwo.locator(".doc-section-edit").first();
+      await expect(secondDocSection).toBeVisible();
+      await firstDocField.fill("プレイヤー1の下書き");
+      await secondDocSection.locator("textarea").fill("プレイヤー2の保存内容");
+      await expect(secondDocSection.getByText(/✓ 保存済み/)).toBeVisible({ timeout: 5_000 });
+      await expect(playerOne.getByRole("alert")).toContainText("同時編集を検知しました");
+      await playerOne.getByRole("button", { name: "サーバー内容を採用" }).click();
+      await expect(playerOne.getByRole("alert")).toHaveCount(0);
       await firstDocField.fill("ブラウザE2Eで保存状態を確認");
       await expect(firstDocSection.getByText(/✓ 保存済み/)).toBeVisible({ timeout: 5_000 });
       const downloadPromise = playerOne.waitForEvent("download");
