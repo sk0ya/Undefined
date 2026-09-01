@@ -147,7 +147,7 @@ export function useHostGame(): HostConn {
   const aiRef = useRef(ai);
   aiRef.current = ai;
 
-  // AIの呼び出し口。キーが未設定の間は undefined を返し、AI機能をオフにする
+  // AIの呼び出し口。CodexブリッジURL/APIキーが未設定の間は undefined を返す。
   const answerNPC = useMemo(() => {
     if (!aiEnabled(ai)) return undefined;
     return async (npcId: string, question: string) => {
@@ -155,7 +155,7 @@ export function useHostGame(): HostConn {
       if (!s) return "";
       return chat(aiRef.current, buildNPCPrompt(s.engine, npcId, question));
     };
-  }, [ai.apiKey, ai.baseUrl, ai.model]);
+  }, [ai.provider, ai.apiKey, ai.baseUrl, ai.model, ai.codexBridgeUrl]);
 
   useEffect(() => {
     let restore: unknown;
