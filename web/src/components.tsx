@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { PHASES, REACTIONS, phaseIndex } from "./types";
 import { buildPhaseGuide, type GuideTask } from "./game/phaseGuide";
+import { buildDecisionTrail, buildPlayerRetrospectives } from "./game/retrospective";
 import type { ClientMessage } from "./game/protocol";
 import {
   isMuted,
@@ -779,6 +780,8 @@ export function ResultsView({ state, send }: { state: Snapshot; send?: (m: Clien
   const sc = state.scenario;
   const [nextAction, setNextAction] = useState(state.retrospectiveAction ?? "");
   useEffect(() => setNextAction(state.retrospectiveAction ?? ""), [state.retrospectiveAction]);
+  const playerRetrospectives = buildPlayerRetrospectives(state);
+  const decisionTrail = buildDecisionTrail(state);
 
   const playerCards = state.players
     .filter((p) => p.roleId && (!state.myRoomId || p.roomId === state.myRoomId))
@@ -842,18 +845,30 @@ export function ResultsView({ state, send }: { state: Snapshot; send?: (m: Clien
         </p>
         <h4>判断の足跡</h4>
         <ul className="small">
-          {state.players.map((p) => {
-            const asked = state.questions.filter((q) => q.askerId === p.id).length;
-            const proposals = state.proposals.filter((proposal) => proposal.authorId === p.id);
-            const adopted = proposals.filter((proposal) => proposal.status === "adopted").length;
-            return (
-              <li key={p.id}>
-                <strong>{p.name}</strong>: 質問 {asked}件 / 要求カード {proposals.length}件(採用 {adopted}件)
-              </li>
-            );
-          })}
+          {playerRetrospectives.map((player) => (
+            <li key={player.playerId}>
+              <strong>{player.name}</strong>: 質問 {player.questions}件 / 要求カード {player.proposals}件(採用 {player.adopted}件)
+              {player.secretScore !== undefined && (
+                <span> / 個人目標 {player.secretScore}/{player.secretMax}点</span>
+              )}
+            </li>
+          ))}
           {state.players.length === 0 && <li>参加者の記録はありません</li>}
         </ul>
+
+        <h4>判断材料として残った記録</h4>
+        {decisionTrail.length > 0 ? (
+          <ul className="small">
+            {decisionTrail.map((item, index) => (
+              <li key={`${item.kind}-${index}`}>
+                <strong>{item.label}</strong>
+                <div className="muted prewrap">→ {item.detail}</div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="small muted">質問・採用要求・仕様書の記録はありません。</p>
+        )}
 
         {score?.hiddenReqs && score.hiddenReqs.some((req) => !req.discovered) && (
           <>
