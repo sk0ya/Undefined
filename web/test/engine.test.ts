@@ -748,6 +748,42 @@ test("hostのルーム優先度は進行を止める状態から並べる", () =
   assert.equal(roomAttention(normal, "discussion").level, "normal");
 });
 
+test("hostの優先キューは10ルーム相当でも全ルームを保持する", () => {
+  const { g } = startGame(Array.from({ length: 40 }, (_, i) => `参加者${i + 1}`));
+  g.setPhase("discussion");
+  const rooms = structuredClone(asHost(g).rooms!);
+
+  rooms.forEach((room) => room.players.forEach((player) => {
+    player.connected = true;
+  }));
+  rooms[0].players[0].connected = false;
+  rooms[1].players.forEach((player) => {
+    player.ready = true;
+  });
+  for (const room of rooms.slice(2)) {
+    room.proposals.push({
+      id: `${room.id}-proposal`,
+      authorId: room.players[0].id,
+      authorName: room.players[0].name,
+      authorRole: "",
+      category: "機能要件",
+      title: "進行中の要求",
+      description: "",
+      status: "pending",
+      approveCount: 0,
+      rejectCount: 0,
+      votedCount: 0,
+      votesVisible: false,
+    });
+  }
+
+  const ordered = sortRoomsByAttention(rooms, "discussion");
+  assert.equal(ordered.length, 10);
+  assert.equal(roomAttention(ordered[0], "discussion").level, "blocking");
+  assert.equal(roomAttention(ordered[1], "discussion").level, "ready");
+  assert.ok(ordered.slice(2).every((room) => roomAttention(room, "discussion").level === "normal"));
+});
+
 test("タイマーは停止・実行中・一時停止・時間切れを区別し、延長できる", () => {
   const { g } = startGame();
   assert.equal(phaseTimerPreset("discussion"), 15);
