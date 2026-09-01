@@ -1091,6 +1091,7 @@ export function DocEditor({
   const [saveTimes, setSaveTimes] = useState<Record<string, number>>({});
   const [conflicts, setConflicts] = useState<Record<string, { local: string; server: string }>>({});
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const timeouts = useRef<Record<string, number>>({});
   const lastErrorRef = useRef<string | null>(lastError ?? null);
   // 他の人の編集表示を数秒で消すため、定期的に再描画する
@@ -1192,6 +1193,23 @@ export function DocEditor({
           }}
         >
           {copied ? "✓ コピーしました" : "Markdownをコピー"}
+        </button>
+        <button
+          className="ghost"
+          onClick={() => {
+            const content = buildDocMarkdown(state);
+            const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = `requirements-${state.scenario?.id ?? "document"}.md`;
+            anchor.click();
+            setTimeout(() => URL.revokeObjectURL(url), 0);
+            setDownloaded(true);
+            setTimeout(() => setDownloaded(false), 2000);
+          }}
+        >
+          {downloaded ? "✓ 保存しました" : "Markdownを保存"}
         </button>
         <button className="ghost" onClick={() => window.print()} aria-label="要件定義書を印刷">
           🖨 印刷

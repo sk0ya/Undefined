@@ -89,6 +89,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(playerOne.getByRole("button", { name: /📝 要求カード.*新着 1.*自分の提出 1/ })).toBeVisible();
       await playerOne.locator(".tabs").getByRole("button", { name: /📄 仕様書/ }).click();
       await expect(playerOne.getByRole("button", { name: "要件定義書を印刷" })).toBeVisible();
+      const downloadPromise = playerOne.waitForEvent("download");
+      await playerOne.getByRole("button", { name: "Markdownを保存" }).click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toBe("requirements-restaurant.md");
       await playerOne.emulateMedia({ media: "print" });
       await expect(playerOne.locator(".doc-editor")).toBeVisible();
       await expect(playerOne.locator(".topbar")).toBeHidden();
