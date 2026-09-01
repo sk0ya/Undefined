@@ -615,6 +615,30 @@ test("保存して読み直すと同じ状態に戻る", () => {
   assert.equal(restored.join("", token).player.id, ids[0]);
 });
 
+test("旧形式の保存データ(追加フィールドなし)からも復帰できる", () => {
+  const { g, ids } = discussing();
+  const room = g.roomOf(ids[0])!;
+  g.propose(ids[0], "機能要件", "旧データでも残るカード", "説明");
+  g.editDoc(room.id, room.doc[0].id, "旧データでも残る本文", "あき", false);
+
+  const legacy = structuredClone(g.serialize()) as Record<string, unknown>;
+  // 後から追加されたフィールドが保存されていなかった時期の形を再現する。
+  delete legacy.autoAnswer;
+  for (const savedRoom of legacy.rooms as Record<string, unknown>[]) {
+    delete savedRoom.retrospectiveAction;
+  }
+
+  const restored = newGame();
+  restored.restore(legacy as never);
+  assert.equal(restored.phase, g.phase);
+  assert.equal(restored.scenarioId, g.scenarioId);
+  assert.equal(restored.playerOrder.length, g.playerOrder.length);
+  assert.equal(restored.rooms.length, g.rooms.length);
+  assert.equal(restored.rooms[0].proposals[0].title, "旧データでも残るカード");
+  assert.equal(restored.rooms[0].doc[0].content, "旧データでも残る本文");
+  assert.equal(restored.join("", g.players[ids[0]].token).player.id, ids[0]);
+});
+
 test("壊れた保存データは無視する", () => {
   const g = newGame();
   g.restore({ v: 99 } as never);
@@ -778,11 +802,15 @@ test("hostの優先キューは10ルーム相当でも全ルームを保持す�
     });
   }
 
+  const startedAt = performance.now();
   const ordered = sortRoomsByAttention(rooms, "discussion");
+  const elapsedMs = performance.now() - startedAt;
   assert.equal(ordered.length, 10);
   assert.equal(roomAttention(ordered[0], "discussion").level, "blocking");
   assert.equal(roomAttention(ordered[1], "discussion").level, "ready");
   assert.ok(ordered.slice(2).every((room) => roomAttention(room, "discussion").level === "normal"));
+  // 5秒基準はUI操作の受け入れ基準とは分け、優先度計算自体がボトルネックでないことを固定する。
+  assert.ok(elapsedMs < 5_000, `優先度計算が遅すぎます: ${elapsedMs.toFixed(1)}ms`);
 });
 
 test("タイマーは停止・実行中・一時停止・時間切れを区別し、延長できる", () => {
