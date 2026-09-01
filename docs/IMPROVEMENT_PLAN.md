@@ -256,7 +256,7 @@ AIがなくても同じゲーム体験が成立する。AIを使う場合も、�
 | P1-4 ファシリテーション | `a7fc7f1` | 台本、3段階ヒント、短縮ルートをhost画面とシナリオ検証で確認 |
 | Phase 4 磨き込み | `075ebe1` `8aa08cb` `284b8c9` `ca0f3f5` `2a5e175` | 主要E2E、AIなし、復旧、印刷、Markdown保存を確認。実参加者テストのみ未実施 |
 
-最終確認コマンドは `npm test`（66件）、`npm run build`、`npm run validate:scenarios:strict`、`npm run test:e2e`（5件）とし、変更ごとに差分確認（`git diff --check`）後、個別コミットする。
+最終確認コマンドは `npm test`（66件）、`npm run build`、`npm run validate:scenarios:strict`、`npm run test:e2e`（6件）とし、変更ごとに差分確認（`git diff --check`）後、個別コミットする。
 
 ### Phase 4: 磨き込み（1スプリント）
 
