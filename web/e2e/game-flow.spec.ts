@@ -112,10 +112,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
 
       await host.locator("button.scenario-item").first().click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
-      for (let i = 0; i < 4; i += 1) {
+      for (const phase of ["ヒアリング・議論", "合意形成(投票)", "要件定義書の仕上げ", "結果発表"]) {
         await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+        await expect(host.locator(".step.step-active .step-label")).toHaveText(phase);
       }
-      await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
       await expect(host.locator(".room-comparison")).toBeVisible();
       await expect(host.locator(".room-comparison-item")).toHaveCount(2);
     } finally {

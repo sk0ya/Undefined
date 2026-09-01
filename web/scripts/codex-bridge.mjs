@@ -81,7 +81,6 @@ async function runCodex(prompt) {
     "--sandbox",
     "read-only",
     "--json",
-    "Return only the final answer to the supplied game prompt.",
   ];
   // ゲーム入力をCodexの作業ルートにあるリポジトリへ触れさせない。
   const workdir = await mkdtemp(join(tmpdir(), "reqgame-codex-"));
@@ -129,7 +128,9 @@ async function runCodex(prompt) {
         if (!response) reject(new Error("Codexの最終回答を取得できませんでした"));
         else resolve(response);
       });
-      child.stdin.end(prompt);
+      // Windowsでは.cmdをshell経由で起動するため、固定指示を引数にすると
+      // 空白で分割されてCodexの引数として解釈される。指示もstdinへ渡す。
+      child.stdin.end(`Return only the final answer to the supplied game prompt.\n\n${prompt}`);
     });
   } finally {
     await rm(workdir, { recursive: true, force: true });
