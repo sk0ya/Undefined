@@ -918,16 +918,23 @@ export function DocEditor({
   heading,
   roomId,
   serverNow,
+  lastError,
 }: {
   state: Snapshot;
   send: (m: ClientMessage) => void;
   heading?: string;
   roomId?: string; // ホストが対象ルームを指定する場合
   serverNow?: () => number;
+  lastError?: string | null;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [baselines, setBaselines] = useState<Record<string, string>>({});
+  const [saveStates, setSaveStates] = useState<Record<string, "saving" | "saved" | "error">>({});
+  const [saveTimes, setSaveTimes] = useState<Record<string, number>>({});
+  const [conflicts, setConflicts] = useState<Record<string, { local: string; server: string }>>({});
   const [copied, setCopied] = useState(false);
   const timeouts = useRef<Record<string, number>>({});
+  const lastErrorRef = useRef<string | null>(lastError ?? null);
   // 他の人の編集表示を数秒で消すため、定期的に再描画する
   const [, tick] = useState(0);
   useEffect(() => {
@@ -939,16 +946,67 @@ export function DocEditor({
   useEffect(() => {
     setDrafts((prev) => {
       const next = { ...prev };
+      let changed = false;
       for (const s of state.doc) {
         if (!(s.id in next)) continue;
-        if (next[s.id] === s.content) delete next[s.id];
+        if (next[s.id] === s.content) {
+          delete next[s.id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setSaveStates((prev) => {
+      const next = { ...prev };
+      for (const s of state.doc) {
+        if (s.id in next && s.content === drafts[s.id]) next[s.id] = "saved";
       }
       return next;
     });
-  }, [state.doc]);
+    setSaveTimes((prev) => {
+      const next = { ...prev };
+      for (const s of state.doc) {
+        if (s.id in drafts && s.content === drafts[s.id]) next[s.id] = s.editedAtMs ?? Date.now();
+      }
+      return next;
+    });
+    setConflicts((prev) => {
+      const next = { ...prev };
+      for (const s of state.doc) {
+        const conflict = next[s.id];
+        if (s.id in drafts && baselines[s.id] !== undefined && s.content !== drafts[s.id] && s.content !== baselines[s.id]) {
+          next[s.id] = { local: drafts[s.id], server: s.content };
+        } else if (conflict && !(s.id in drafts)) {
+          delete next[s.id];
+        }
+      }
+      return next;
+    });
+  }, [state.doc, drafts, baselines]);
+
+  useEffect(() => {
+    if (lastError && lastError !== lastErrorRef.current) {
+      setSaveStates((prev) => {
+        const next = { ...prev };
+        for (const id of Object.keys(drafts)) next[id] = "error";
+        return next;
+      });
+    }
+    lastErrorRef.current = lastError ?? null;
+  }, [lastError, drafts]);
 
   const onEdit = (id: string, value: string) => {
+    const section = state.doc.find((s) => s.id === id);
+    if (!(id in drafts) && section) {
+      setBaselines((prev) => ({ ...prev, [id]: section.content }));
+    }
     setDrafts((prev) => ({ ...prev, [id]: value }));
+    setSaveStates((prev) => ({ ...prev, [id]: "saving" }));
+    setConflicts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     window.clearTimeout(timeouts.current[id]);
     timeouts.current[id] = window.setTimeout(() => {
       send({ type: "edit_doc", sectionId: id, content: value, ...(roomId ? { roomId } : {}) });
@@ -993,11 +1051,71 @@ export function DocEditor({
             <h4>
               {s.title}
               {busy && <span className="editing-badge">✏️ {s.editedBy} が編集中</span>}
+              {saveStates[s.id] === "saving" && <span className="doc-save-state doc-save-saving">保存中…</span>}
+              {saveStates[s.id] === "saved" && (
+                <span className="doc-save-state doc-save-saved">
+                  ✓ 保存済み{saveTimes[s.id] ? ` ${new Date(saveTimes[s.id]).toLocaleTimeString()}` : ""}
+                </span>
+              )}
+              {saveStates[s.id] === "error" && <span className="doc-save-state doc-save-error">⚠ 保存失敗</span>}
             </h4>
+            {conflicts[s.id] && (
+              <div className="doc-conflict" role="alert">
+                <strong>⚠ 同時編集を検知しました</strong>
+                <p className="small muted">サーバーに別の内容が保存されています。残す内容を選んでください。</p>
+                <div className="doc-conflict-columns">
+                  <div>
+                    <span className="small muted">サーバー保存済み</span>
+                    <p className="prewrap">{conflicts[s.id].server || "(未記入)"}</p>
+                  </div>
+                  <div>
+                    <span className="small muted">自分の下書き</span>
+                    <p className="prewrap">{conflicts[s.id].local || "(未記入)"}</p>
+                  </div>
+                </div>
+                <button
+                  className="ghost small-btn"
+                  onClick={() => {
+                    setDrafts((prev) => {
+                      const next = { ...prev };
+                      delete next[s.id];
+                      return next;
+                    });
+                    setBaselines((prev) => {
+                      const next = { ...prev };
+                      delete next[s.id];
+                      return next;
+                    });
+                    setConflicts((prev) => {
+                      const next = { ...prev };
+                      delete next[s.id];
+                      return next;
+                    });
+                    setSaveStates((prev) => ({ ...prev, [s.id]: "saved" }));
+                  }}
+                >
+                  サーバー内容を採用
+                </button>
+                <button
+                  className="small-btn"
+                  onClick={() => {
+                    setBaselines((prev) => ({ ...prev, [s.id]: s.content }));
+                    onEdit(s.id, conflicts[s.id].local);
+                  }}
+                >
+                  自分の下書きを再送
+                </button>
+              </div>
+            )}
             <textarea
               rows={4}
               placeholder={tmpl.find((t) => t.id === s.id)?.placeholder ?? ""}
               value={drafts[s.id] ?? s.content}
+              onFocus={(e) => {
+                if (busy && !(s.id in drafts) && !window.confirm(`${s.editedBy}さんがこの欄を編集中です。上書きしますか?`)) {
+                  e.currentTarget.blur();
+                }
+              }}
               onChange={(e) => onEdit(s.id, e.target.value)}
             />
           </div>

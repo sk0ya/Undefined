@@ -466,6 +466,7 @@ function HostPhaseContent({
               send={send}
               roomId={room?.id}
               heading={room ? `📄 要件定義書エディタ(${room.name})` : undefined}
+              lastError={conn.lastError}
             />
           </div>
           <div>

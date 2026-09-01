@@ -78,6 +78,7 @@ export default function PlayerApp({
           send={send}
           myRole={myRole}
           serverNow={serverNow}
+          lastError={lastError}
         />
       </main>
       <AnnouncementToasts items={state.announcements} />
@@ -171,11 +172,13 @@ function PlayerPhaseContent({
   send,
   myRole,
   serverNow,
+  lastError,
 }: {
   state: Snapshot;
   send: (m: ClientMessage) => void;
   myRole: RoleView | null;
   serverNow: () => number;
+  lastError: string | null;
 }) {
   const hearing = state.scenario?.type === "hearing";
   const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
@@ -190,7 +193,7 @@ function PlayerPhaseContent({
   // バッジは「何件あるか」で統一する。未記入数はDocEditor側で見出しに出す
   const docTab = (heading?: string): Tab => [
     heading ? "📄 仕様書(最終確認)" : "📄 仕様書",
-    <DocEditor state={state} send={send} heading={heading} serverNow={serverNow} key="d" />,
+    <DocEditor state={state} send={send} heading={heading} serverNow={serverNow} lastError={lastError} key="d" />,
   ];
 
   switch (state.phase) {
