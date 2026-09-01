@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AIKind, HostConn, PromptOpts } from "./useGame";
 import type { ClientMessage } from "./game/protocol";
-import type { QuestionView, RoomView, Snapshot } from "./types";
-import { PHASES, phaseIndex } from "./types";
+import type { Phase, QuestionView, RoomView, Snapshot, TimerState } from "./types";
+import { PHASES, phaseIndex, phaseLabel } from "./types";
+import { roomAttention, sortRoomsByAttention } from "./game/roomAttention";
 import {
   AnnouncementLog,
   AnnouncementToasts,
@@ -83,8 +84,14 @@ export default function HostApp({ conn }: { conn: HostConn }) {
       </header>
       <HostPhaseControls state={state} send={send} />
       <main className="content wide">
+        <HostCockpit state={state} serverNow={serverNow} onSelectRoom={setSelectedRoomId} />
         {state.phase !== "lobby" && rooms.length > 0 && (
-          <RoomTabs rooms={rooms} activeId={room?.id ?? ""} onSelect={setSelectedRoomId} />
+          <RoomTabs
+            rooms={rooms}
+            phase={state.phase}
+            activeId={room?.id ?? ""}
+            onSelect={setSelectedRoomId}
+          />
         )}
         <HostPhaseContent conn={conn} state={state} send={send} room={room} />
       </main>
@@ -93,6 +100,117 @@ export default function HostApp({ conn }: { conn: HostConn }) {
       <ConnBadge status={status} />
     </div>
   );
+}
+
+// ---- 進行コックピット ---------------------------------------
+
+function HostCockpit({
+  state,
+  serverNow,
+  onSelectRoom,
+}: {
+  state: Snapshot;
+  serverNow: () => number;
+  onSelectRoom: (id: string) => void;
+}) {
+  const rooms = state.rooms ?? [];
+  const ordered = sortRoomsByAttention(rooms, state.phase);
+  const connected = state.players.filter((p) => p.connected).length;
+  const blocking = ordered.filter((r) => roomAttention(r, state.phase).level === "blocking").length;
+  const ready = ordered.filter((r) => roomAttention(r, state.phase).level === "ready").length;
+  const checks = nextPhaseChecks(state);
+
+  return (
+    <section className="host-cockpit" aria-labelledby="host-cockpit-title">
+      <div className="host-cockpit-head">
+        <div>
+          <div className="eyebrow">host dashboard</div>
+          <h3 id="host-cockpit-title">進行コックピット</h3>
+        </div>
+        <div className="cockpit-phase">
+          <strong>{phaseLabel(state.phase)}</strong>
+          <TimerSummary timer={state.timer} serverNow={serverNow} />
+        </div>
+      </div>
+      <div className="cockpit-stats">
+        <span>参加者 <strong>{state.players.length}</strong>人</span>
+        <span>接続中 <strong>{connected}</strong>人</span>
+        <span className={blocking > 0 ? "cockpit-stat-alert" : ""}>要対応 <strong>{blocking}</strong>ルーム</span>
+        <span className={ready > 0 ? "cockpit-stat-ready" : ""}>全員準備OK <strong>{ready}</strong>ルーム</span>
+      </div>
+      {rooms.length > 0 && (
+        <div className="cockpit-lane" aria-label="ルーム優先キュー">
+          {ordered.map((room) => {
+            const attention = roomAttention(room, state.phase);
+            return (
+              <button
+                key={room.id}
+                className={`cockpit-room cockpit-room-${attention.level}`}
+                onClick={() => onSelectRoom(room.id)}
+                title={attention.reason}
+              >
+                <span className="cockpit-room-label">{attention.label}</span>
+                <strong>{room.name}</strong>
+                <span className="small">{room.players.length}人</span>
+                <span className="cockpit-room-reason">{attention.reason}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="cockpit-checks">
+        <span className="small muted">次へ進む前の確認</span>
+        {checks.map((check) => (
+          <span key={check.label} className={check.ok ? "cockpit-check-ok" : "cockpit-check-alert"}>
+            {check.ok ? "✓" : "!"} {check.label}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TimerSummary({ timer, serverNow }: { timer: TimerState; serverNow: () => number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!timer.running) return;
+    const id = window.setInterval(() => tick((n) => n + 1), 500);
+    return () => window.clearInterval(id);
+  }, [timer.running, timer.endsAtMs]);
+
+  if (timer.totalMs === 0 && !timer.running && timer.remainingMs === 0) {
+    return <span className="small muted">タイマー未設定</span>;
+  }
+  const ms = timer.running ? Math.max(0, timer.endsAtMs - serverNow()) : timer.remainingMs;
+  const seconds = Math.ceil(ms / 1000);
+  const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  return <span className={seconds === 0 ? "cockpit-time-over" : "small"}>⏱ {time}{!timer.running && "（停止中）"}</span>;
+}
+
+function nextPhaseChecks(state: Snapshot): { label: string; ok: boolean }[] {
+  const rooms = state.rooms ?? [];
+  const pendingQuestions = rooms.reduce(
+    (count, room) => count + room.questions.filter((q) => q.pending || !q.answer).length,
+    0,
+  );
+  const unvoted = rooms.reduce(
+    (count, room) => count + room.proposals.filter((p) => (p.notVoted?.length ?? 0) > 0).length,
+    0,
+  );
+  const unscored = rooms.filter((room) => !room.score).length;
+  if (state.phase === "discussion") {
+    return [
+      { label: `未回答質問 ${pendingQuestions}件`, ok: pendingQuestions === 0 },
+      { label: `未準備ルーム ${rooms.filter((r) => !r.players.length || !r.players.every((p) => p.ready)).length}件`, ok: rooms.every((r) => r.players.length > 0 && r.players.every((p) => p.ready)) },
+    ];
+  }
+  if (state.phase === "voting") {
+    return [{ label: `未投票カード ${unvoted}件`, ok: unvoted === 0 }];
+  }
+  if (state.phase === "finalize") {
+    return [{ label: `未採点ルーム ${unscored}件`, ok: unscored === 0 }];
+  }
+  return [{ label: "確認項目なし", ok: true }];
 }
 
 // ---- フェーズ操作バー ----
@@ -201,10 +319,12 @@ function TimerControls({ send }: { send: (m: ClientMessage) => void }) {
 
 function RoomTabs({
   rooms,
+  phase,
   activeId,
   onSelect,
 }: {
   rooms: RoomView[];
+  phase: Phase;
   activeId: string;
   onSelect: (id: string) => void;
 }) {
@@ -213,9 +333,10 @@ function RoomTabs({
   }
   return (
     <div className="room-tabs">
-      {rooms.map((r) => {
+      {sortRoomsByAttention(rooms, phase).map((r) => {
         const waiting = r.questions.filter((q) => !q.answer).length;
         const ready = r.players.filter((p) => p.ready).length;
+        const attention = roomAttention(r, phase);
         return (
           <button
             key={r.id}
@@ -224,6 +345,9 @@ function RoomTabs({
             title={`要求カード ${r.proposals.length}件 / 質問 ${r.questions.length}件`}
           >
             🚪 {r.name}
+            <span className={`room-tab-attention room-tab-attention-${attention.level}`}>
+              {attention.label}
+            </span>
             <span className="room-tab-count">
               {r.players.length}人
               {ready > 0 && ` ✓${ready}`}

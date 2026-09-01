@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { GameEngine, MAX_PLAYERS } from "../src/game/engine";
 import { applyMessage } from "../src/game/protocol";
 import { buildPhaseGuide } from "../src/game/phaseGuide";
+import { roomAttention, sortRoomsByAttention } from "../src/game/roomAttention";
 import type { Scenario, Snapshot } from "../src/types";
 import restaurant from "../../scenarios/restaurant.json";
 import smartFactory from "../../scenarios/smart-factory.json";
@@ -674,4 +675,44 @@ test("NPCなしのフェーズガイドは質問キューを要求せず、空�
   g.setPhase("voting");
   const voting = buildPhaseGuide(asPlayer(g, ids[0]));
   assert.match(voting.readyEffect, /投票対象の要求カードがありません/);
+});
+
+test("hostのルーム優先度は進行を止める状態から並べる", () => {
+  const { g } = startGame(["a", "b", "c", "d", "e", "f", "g", "h"]);
+  g.setPhase("discussion");
+  const [first, second] = g.rooms;
+  first.playerIds.forEach((id) => {
+    g.players[id].connected = true;
+    g.players[id].ready = true;
+  });
+  second.playerIds.forEach((id) => {
+    g.players[id].connected = false;
+  });
+  const snapshot = asHost(g);
+  const ordered = sortRoomsByAttention(snapshot.rooms!, snapshot.phase);
+  assert.equal(ordered[0].id, second.id);
+  assert.equal(roomAttention(ordered[0], snapshot.phase).level, "blocking");
+  assert.equal(roomAttention(ordered[1], snapshot.phase).level, "ready");
+
+  const stalled = structuredClone(snapshot.rooms![0]);
+  stalled.players = stalled.players.map((p) => ({ ...p, ready: false, connected: true }));
+  assert.equal(roomAttention(stalled, "discussion").level, "stalled");
+  assert.equal(roomAttention(stalled, "finalize").label, "未採点");
+
+  const normal = structuredClone(stalled);
+  normal.proposals.push({
+    id: "proposal-1",
+    authorId: normal.players[0].id,
+    authorName: normal.players[0].name,
+    authorRole: "",
+    category: "機能要件",
+    title: "通常の要求",
+    description: "",
+    status: "pending",
+    approveCount: 0,
+    rejectCount: 0,
+    votedCount: 0,
+    votesVisible: false,
+  });
+  assert.equal(roomAttention(normal, "discussion").level, "normal");
 });
