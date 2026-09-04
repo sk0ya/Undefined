@@ -633,6 +633,7 @@ function HostLobby({
 /** プレイヤーの入り口。ルームコードと参加URLを大きく出す */
 function InviteCard({ conn }: { conn: HostConn }) {
   const [copied, setCopied] = useState<"code" | "url" | null>(null);
+  const localLink = /:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/)/.test(conn.joinUrl);
   const copy = (text: string, what: "code" | "url") => {
     void navigator.clipboard.writeText(text);
     setCopied(what);
@@ -649,8 +650,14 @@ function InviteCard({ conn }: { conn: HostConn }) {
         {conn.roomCode}
       </div>
       <p className="small muted center">
-        プレイヤーは公開URLを開き、このコードと名前を入れて参加します
+        プレイヤーはこのリンクを開き、このコードと名前を入れて参加します
       </p>
+      {localLink && (
+        <p className="small invite-local-note">
+          localhostのリンクは、このホストPCと同じ端末で参加する場合に使えます。
+          別端末からは公開URLを設定してください。
+        </p>
+      )}
       <div className="invite-actions">
         <button className="ghost" onClick={() => copy(conn.roomCode, "code")}>
           {copied === "code" ? "✓ コピーしました" : "コードをコピー"}

@@ -1193,6 +1193,14 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.76rem;
 }
+.invite-local-note {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  color: var(--warn);
+  text-align: left;
+}
 .invite-card .danger { margin-top: 10px; }
 
 .room-input {
@@ -1547,6 +1555,212 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
   .discussion-action-links { grid-template-columns: 1fr; }
   .discussion-action-head { align-items: flex-start; flex-direction: column; gap: 2px; }
   .restore-notice { align-items: flex-start; margin: 10px 12px 0; }
+}
+
+/* ---- 情報量を抑えたプレイヤー導線 ------------------------- */
+.player-app .phase-banner {
+  margin: 4px 0 14px;
+}
+.player-app .phase-banner h2 {
+  font-size: 1.28rem;
+}
+.phase-guide {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: none;
+}
+.phase-guide-compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.phase-guide-compact-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.phase-guide-compact-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+}
+.phase-guide-compact-completion {
+  flex: 0 1 auto;
+  color: var(--ink-500);
+  font-size: 0.78rem;
+  text-align: right;
+}
+.phase-guide-purpose {
+  color: var(--ink-500);
+  font-size: 0.84rem;
+  margin: 0 0 10px;
+}
+.phase-guide-details {
+  margin-top: 7px;
+  padding-top: 7px;
+}
+.phase-guide-details .phase-guide-grid {
+  margin-top: 10px;
+}
+.phase-guide-details .phase-guide-foot {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.phase-guide-next {
+  flex-basis: 260px;
+  padding: 7px 11px;
+}
+.phase-guide-details summary,
+.announcement-log summary,
+.supporting-info summary,
+.lobby-tips summary,
+.discussion-action-more summary {
+  cursor: pointer;
+  color: var(--ink-500);
+  font-size: 0.82rem;
+  font-weight: 700;
+  list-style-position: inside;
+}
+.phase-guide-details summary:hover,
+.announcement-log summary:hover,
+.supporting-info summary:hover,
+.lobby-tips summary:hover,
+.discussion-action-more summary:hover {
+  color: var(--brand-600);
+}
+.phase-guide-details[open] summary,
+.announcement-log[open] summary,
+.supporting-info details[open] summary,
+.lobby-tips[open] summary,
+.discussion-action-more[open] summary {
+  margin-bottom: 8px;
+}
+.phase-guide-foot {
+  grid-template-columns: 1fr;
+}
+.phase-guide-ready {
+  display: none;
+}
+
+.discussion-action-hub {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 11px 14px;
+  margin-bottom: 12px;
+}
+.discussion-action-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 0;
+  min-width: 0;
+}
+.discussion-action-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.discussion-action-primary {
+  margin: 0;
+  padding: 7px 13px;
+  white-space: nowrap;
+}
+.discussion-action-more {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--brand-100);
+  padding-top: 7px;
+}
+.discussion-action-more .discussion-action-links {
+  margin-top: 7px;
+}
+
+.announcement-log {
+  padding: 11px 16px;
+  margin-bottom: 12px;
+  box-shadow: none;
+}
+.announcement-log summary {
+  color: var(--ink-700);
+}
+.announcement-log-body {
+  padding-top: 2px;
+}
+
+.supporting-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.supporting-info details {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--r-md);
+  padding: 10px 13px;
+}
+.supporting-info details[open] {
+  grid-column: 1 / -1;
+  background: #fbfcfe;
+}
+.supporting-info details[open] > .card {
+  margin: 0;
+  padding: 13px 0 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.supporting-info details[open] .card:last-child {
+  margin-bottom: 0;
+}
+.supporting-info details[open] .scenario-head {
+  margin-top: 0;
+}
+.lobby-status-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+  margin: 4px 0 6px;
+}
+.lobby-tips {
+  text-align: left;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ink-200);
+}
+.lobby-tips ul {
+  color: var(--ink-700);
+  margin-bottom: 0;
+}
+.lobby-tips li {
+  margin: 5px 0;
+}
+
+@media (max-width: 640px) {
+  .phase-guide-compact-row {
+    display: block;
+  }
+  .phase-guide-compact-completion {
+    display: block;
+    margin-top: 2px;
+    text-align: left;
+  }
+  .discussion-action-hub {
+    grid-template-columns: 1fr;
+  }
+  .discussion-action-primary {
+    width: 100%;
+  }
+  .supporting-info {
+    grid-template-columns: 1fr;
+  }
+  .supporting-info details[open] {
+    grid-column: auto;
+  }
 }
 
 /* scrollbars (WebKit) */

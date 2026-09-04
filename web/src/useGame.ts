@@ -42,9 +42,8 @@ const NAME_KEY = "reqgame_name";
 const ROOM_KEY = "reqgame_room";
 const PLAYER_ROOM_KEY = "reqgame_player_room";
 const SAVED_GAME_KEY = "reqgame_hostgame";
-// ローカルhost画面から共有しても、参加者は公開Pagesへ入れるようにする。
-// forkや独自ドメインではVITE_PUBLIC_GAME_URLで上書きできる。
-const DEFAULT_PUBLIC_GAME_URL = "https://sk0ya.github.io/Undefined/";
+// 参加リンクは現在表示している画面を基本にする。公開URLを使う場合は
+// VITE_PUBLIC_GAME_URLで上書きできる。
 
 export function savedName(): string {
   return localStorage.getItem(NAME_KEY) ?? "";
@@ -335,8 +334,7 @@ export function useHostGame(): HostConn {
   const joinUrl = useMemo(() => {
     if (!roomCode) return "";
     const configured = import.meta.env.VITE_PUBLIC_GAME_URL?.trim();
-    const isLocal = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
-    const base = configured || (isLocal ? DEFAULT_PUBLIC_GAME_URL : `${location.origin}${location.pathname}`);
+    const base = configured || `${location.origin}${location.pathname}`;
     const url = new URL(base, location.href);
     url.hash = roomCode;
     return url.toString();

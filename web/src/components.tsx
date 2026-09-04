@@ -172,31 +172,27 @@ export function PhaseGuide({ state }: { state: Snapshot }) {
   const guide = buildPhaseGuide(state);
   return (
     <section className="phase-guide" aria-labelledby="phase-guide-title">
-      <div className="phase-guide-head">
-        <div>
-          <div className="eyebrow">いまやること</div>
-          <h3 id="phase-guide-title">このフェーズの進め方</h3>
-          <p>{guide.purpose}</p>
+      <div className="phase-guide-compact-row">
+        <div className="phase-guide-compact-main">
+          <span className="eyebrow">いまやること</span>
+          <strong id="phase-guide-title">{guide.next}</strong>
         </div>
-        <div className="phase-guide-next">
-          <span className="small muted">次に見る場所</span>
-          <strong>{guide.next}</strong>
-        </div>
+        <span className="phase-guide-compact-completion">完了: {guide.completion}</span>
       </div>
-      <div className="phase-guide-grid">
-        <GuideTaskList title="必ず行うこと" tasks={guide.must} />
-        <GuideTaskList title="できれば行うこと" tasks={guide.nice} />
-      </div>
-      <div className="phase-guide-foot">
-        <div>
-          <span className="small muted">完了条件</span>
-          <strong>{guide.completion}</strong>
+      <details className="phase-guide-details">
+        <summary>進め方のヒントを表示</summary>
+        <p className="phase-guide-purpose">{guide.purpose}</p>
+        <div className="phase-guide-grid">
+          <GuideTaskList title="必ず行うこと" tasks={guide.must} />
+          <GuideTaskList title="できれば行うこと" tasks={guide.nice} />
         </div>
-        <div className="phase-guide-ready">
-          <span className="small muted">準備OKについて</span>
-          <strong>{guide.readyEffect}</strong>
+        <div className="phase-guide-foot">
+          <div>
+            <span className="small muted">準備OKにすると</span>
+            <strong>{guide.readyEffect}</strong>
+          </div>
         </div>
-      </div>
+      </details>
     </section>
   );
 }
@@ -233,25 +229,30 @@ export function DiscussionActionHub({
       detail: "採用した内容を具体的に書く",
     },
   ];
+  const next = links.find((link) =>
+    link.action.includes("未回答") || link.action.includes("未記入") || link.action.includes("未提出"),
+  ) ?? links[0];
   return (
     <section className="discussion-action-hub" aria-label="議論の主要導線">
       <div className="discussion-action-head">
-        <strong>次の一手</strong>
-        <span className="small muted">未対応の多いところから進められます</span>
+        <span className="eyebrow">おすすめ</span>
+        <strong>{next?.action ?? "チームで議論を進める"}</strong>
       </div>
-      <div className="discussion-action-links">
-        {links.map((link) => (
-          <button
-            key={link.label}
-            className="discussion-action-link"
-            onClick={() => onOpen(link.label)}
-          >
-            <strong>{link.label}</strong>
-            <span className="discussion-action-count">{link.action}</span>
-            <span className="small muted">{link.detail}</span>
-          </button>
-        ))}
-      </div>
+      <button className="discussion-action-primary" onClick={() => next && onOpen(next.label)}>
+        {next?.label ?? "議論を開く"} を開く
+      </button>
+      <details className="discussion-action-more">
+        <summary>他の作業を見る</summary>
+        <div className="discussion-action-links">
+          {links.filter((link) => link !== next).map((link) => (
+            <button key={link.label} className="discussion-action-link" onClick={() => onOpen(link.label)}>
+              <strong>{link.label}</strong>
+              <span className="discussion-action-count">{link.action}</span>
+              <span className="small muted">{link.detail}</span>
+            </button>
+          ))}
+        </div>
+      </details>
     </section>
   );
 }
@@ -308,15 +309,17 @@ export function AnnouncementToasts({ items }: { items: Announcement[] }) {
 export function AnnouncementLog({ items }: { items: Announcement[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="card">
-      <h3>📢 クライアントからの連絡事項</h3>
-      {[...items].reverse().map((a) => (
-        <div key={a.id} className="announce-item">
-          <strong>{a.title}</strong>
-          <p>{a.body}</p>
-        </div>
-      ))}
-    </div>
+    <details className="card announcement-log">
+      <summary>📢 クライアントからの連絡事項 <span className="small muted">{items.length}件</span></summary>
+      <div className="announcement-log-body">
+        {[...items].reverse().map((a) => (
+          <div key={a.id} className="announce-item">
+            <strong>{a.title}</strong>
+            <p>{a.body}</p>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 

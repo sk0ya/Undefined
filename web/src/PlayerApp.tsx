@@ -12,7 +12,6 @@ import {
   DiscussionActionHub,
   ErrorToast,
   Leaderboard,
-  PhaseBanner,
   PhaseGuide,
   PhaseStepper,
   ProposalCard,
@@ -72,7 +71,6 @@ export default function PlayerApp({
       </header>
       <PhaseStepper phase={state.phase} />
       <main className="content">
-        <PhaseBanner phase={state.phase} />
         <PhaseGuide state={state} />
         <PlayerPhaseContent
           state={state}
@@ -275,10 +273,9 @@ function PlayerPhaseContent({
                 ],
               ],
               docTab(undefined, blankSections > 0 ? [{ label: "未対応", count: blankSections }] : []),
-              roleTab,
-              scenarioTab,
             ]}
           />
+          <SupportingInfo state={state} role={myRole} hearing={hearing} />
           <ReadyBar state={state} send={send} label="議論はここまででOK" />
         </>
       );
@@ -296,10 +293,9 @@ function PlayerPhaseContent({
                   : [],
               ],
               docTab(),
-              roleTab,
-              scenarioTab,
             ]}
           />
+          <SupportingInfo state={state} role={myRole} hearing={hearing} />
         </>
       );
     case "finalize":
@@ -317,10 +313,9 @@ function PlayerPhaseContent({
                     ],
                   ] as Tab[])
                 : []),
-              roleTab,
-              scenarioTab,
             ]}
           />
+          <SupportingInfo state={state} role={myRole} hearing={hearing} />
           <ReadyBar state={state} send={send} label="仕上げ完了" />
         </>
       );
@@ -334,10 +329,35 @@ function PlayerPhaseContent({
   }
 }
 
+function SupportingInfo({
+  state,
+  role,
+  hearing,
+}: {
+  state: Snapshot;
+  role: RoleView | null;
+  hearing: boolean;
+}) {
+  return (
+    <div className="supporting-info" aria-label="補足情報">
+      <details>
+        <summary>🎭 ロールを確認</summary>
+        <RoleCard role={role} hearing={hearing} />
+      </details>
+      <details>
+        <summary>📖 シナリオを確認</summary>
+        {state.scenario && <ScenarioPanel sc={state.scenario} />}
+      </details>
+    </div>
+  );
+}
+
 function LobbyView({ state }: { state: Snapshot }) {
   return (
     <div className="card center">
-      <h3>参加者({state.players.length}/40)</h3>
+      <div className="lobby-status-icon" aria-hidden="true">⌛</div>
+      <h3>ゲーム開始を待っています</h3>
+      <p className="small muted">参加者 {state.players.length}人</p>
       <div className="player-list">
         {state.players.map((p) => (
           <div
@@ -353,25 +373,17 @@ function LobbyView({ state }: { state: Snapshot }) {
           </div>
         ))}
       </div>
-      <p className="muted pulse">ホストがゲームを開始するのを待っています…</p>
       <p className="small muted">
-        開始時に2〜4人のルームへ自動で分かれ、ルーム対抗で要件定義書の品質を競います。
+        開始すると2〜4人のチームに分かれます。
       </p>
-      <div className="lobby-tips">
-        <h4>勝つコツ</h4>
+      <details className="lobby-tips">
+        <summary>ゲームのコツを見る</summary>
         <ul className="small">
-          <li>
-            <strong>聞かないと出てこない。</strong>
-            相手は「聞かれたことだけ」答えます。正常系より<strong>例外・繁忙期・今の回避策</strong>を掘ると差がつきます
-          </li>
-          <li>
-            <strong>数字を書く。</strong>「速い」ではなく「3秒以内」。曖昧な要件は採点でも実運用テストでも崩れます
-          </li>
-          <li>
-            <strong>やらないことを書く。</strong>スコープ外の明示は、機能を足すのと同じくらい評価されます
-          </li>
+          <li><strong>例外・繁忙期・今の回避策</strong>を質問する</li>
+          <li>「速い」ではなく<strong>「3秒以内」</strong>のように数字を書く</li>
+          <li><strong>やらないこと</strong>も仕様書に書く</li>
         </ul>
-      </div>
+      </details>
     </div>
   );
 }
