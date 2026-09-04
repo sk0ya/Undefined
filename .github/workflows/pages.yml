@@ -55,14 +55,17 @@ jobs:
         run: |
           if [[ "${{ github.event.repository.name }}" == *.github.io ]]; then
             echo "path=/" >> "$GITHUB_OUTPUT"
+            echo "url=https://${{ github.repository_owner }}.github.io/" >> "$GITHUB_OUTPUT"
           else
             echo "path=/${{ github.event.repository.name }}/" >> "$GITHUB_OUTPUT"
+            echo "url=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" >> "$GITHUB_OUTPUT"
           fi
 
       - name: ビルド
         working-directory: web
         env:
           VITE_BASE: ${{ steps.base.outputs.path }}
+          VITE_PUBLIC_GAME_URL: ${{ steps.base.outputs.url }}
         run: npm run build
 
       - name: Jekyll処理を無効化

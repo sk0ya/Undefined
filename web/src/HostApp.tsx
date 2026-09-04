@@ -649,7 +649,7 @@ function InviteCard({ conn }: { conn: HostConn }) {
         {conn.roomCode}
       </div>
       <p className="small muted center">
-        プレイヤーは同じURLを開き、このコードと名前を入れて参加します
+        プレイヤーは公開URLを開き、このコードと名前を入れて参加します
       </p>
       <div className="invite-actions">
         <button className="ghost" onClick={() => copy(conn.roomCode, "code")}>

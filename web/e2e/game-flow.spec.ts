@@ -25,6 +25,9 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
       const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
       expect(roomCode).toHaveLength(6);
+      await expect(host.locator(".invite-url")).toHaveText(
+        `https://sk0ya.github.io/Undefined/#${roomCode}`,
+      );
 
       await slowNetwork.send("Network.enable");
       await slowNetwork.send("Network.emulateNetworkConditions", {
