@@ -16,11 +16,19 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
+    launchOptions: {
+      // 同一マシン上のhost/player間でWebRTCのローカル候補を解決しやすくする。
+      args: ["--disable-features=WebRtcHideLocalIpsWithMdns"],
+    },
     ...devices["Desktop Chrome"],
   },
   webServer: {
     command: `npm run dev -- --host 127.0.0.1 --port ${port} --strictPort`,
     url: baseURL,
+    // 本番Pagesと同じ参加リンク生成をローカルE2Eでも検証する。
+    env: {
+      VITE_PUBLIC_GAME_URL: "https://sk0ya.github.io/Undefined/",
+    },
     reuseExistingServer: false,
     timeout: 120_000,
   },

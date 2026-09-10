@@ -37,10 +37,11 @@ test.describe("ゲームの主要ブラウザフロー", () => {
         uploadThroughput: 32 * 1024,
         connectionType: "cellular3g",
       });
-      await Promise.all([
-        joinAs(playerOne, roomCode, "プレイヤー1", baseURL),
-        joinAs(playerTwo, roomCode, "プレイヤー2", baseURL),
-      ]);
+      // 公開PeerJSブローカー経由の接続を同時に開始すると、接続確立前の
+      // シグナリングが競合して片方だけ参加できないことがあるため、順番に参加させる。
+      await joinAs(playerOne, roomCode, "プレイヤー1", baseURL);
+      await host.waitForTimeout(750);
+      await joinAs(playerTwo, roomCode, "プレイヤー2", baseURL);
       await slowNetwork.send("Network.emulateNetworkConditions", {
         offline: false,
         latency: 0,
@@ -229,7 +230,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.goto(`${baseURL}/#host`);
       await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
       const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
-      await Promise.all(players.map((player, index) => joinAs(player, roomCode, `ジャンプ確認プレイヤー${index + 1}`, baseURL)));
+      await joinAll(players, roomCode, "ジャンプ確認プレイヤー", baseURL);
       await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30_000 });
 
       await host.locator("button.scenario-item").first().click();
@@ -279,7 +280,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.goto(`${baseURL}/#host`);
       await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
       const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
-      await Promise.all(players.map((player, index) => joinAs(player, roomCode, `手動採点プレイヤー${index + 1}`, baseURL)));
+      await joinAll(players, roomCode, "手動採点プレイヤー", baseURL);
       await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30_000 });
 
       await host.locator("button.scenario-item").first().click();
@@ -316,7 +317,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.goto(`${baseURL}/#host`);
       await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30_000 });
       const roomCode = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
-      await Promise.all(players.map((player, index) => joinAs(player, roomCode, `比較プレイヤー${index + 1}`, baseURL)));
+      await joinAll(players, roomCode, "比較プレイヤー", baseURL);
       await expect(host.locator(".player-tag")).toHaveCount(5, { timeout: 30_000 });
 
       await host.locator("button.scenario-item").first().click();
@@ -348,6 +349,13 @@ async function joinAs(page: Page, roomCode: string, name: string, baseURL?: stri
   await page.getByPlaceholder("あなたの名前(ニックネーム可)").fill(name);
   await page.getByRole("button", { name: "参加する" }).click();
   await expect(page.locator(".phase-banner h2")).toHaveText("ロビー", { timeout: 30_000 });
+}
+
+async function joinAll(pages: Page[], roomCode: string, namePrefix: string, baseURL?: string) {
+  for (const [index, page] of pages.entries()) {
+    await joinAs(page, roomCode, `${namePrefix}${index + 1}`, baseURL);
+    await page.waitForTimeout(750);
+  }
 }
 
 async function closeContext(context: BrowserContext) {
