@@ -1259,6 +1259,8 @@ export function DocEditor({
                 <button
                   className="ghost small-btn"
                   onClick={() => {
+                    window.clearTimeout(timeouts.current[s.id]);
+                    delete timeouts.current[s.id];
                     setDrafts((prev) => {
                       const next = { ...prev };
                       delete next[s.id];
