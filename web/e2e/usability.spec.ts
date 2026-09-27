@@ -106,6 +106,7 @@ test("参加エラーを修正し、下書きを失わず質問・要求・管�
     await capture(player, "document-navigation");
     await expect(player.locator(".doc-section-edit").first().getByText(/✓ 保存済み/)).toBeVisible({ timeout: 10000 });
     await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.locator(".tabs").getByRole("button", { name: /投票/ }).click();
     await expect(player.getByRole("button", { name: /未投票だけ表示/ })).toBeVisible();
     await player.getByRole("button", { name: /未投票だけ表示/ }).click();
     await player.getByRole("button", { name: "👍 採用に賛成", exact: true }).click();
@@ -116,6 +117,7 @@ test("参加エラーを修正し、下書きを失わず質問・要求・管�
     await expect(player.getByRole("button", { name: "👎 反対", exact: true })).toHaveClass(/selected/);
     await host.locator(".stepper button").filter({ hasText: "ヒアリング・議論" }).click();
     await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await player.getByLabel("要求カードのタイトル").fill("接続が切れても残したい提案");
     await player.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
     await player.locator(".doc-section-edit textarea").last().fill("切断前の未保存の仕様");

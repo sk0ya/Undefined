@@ -124,6 +124,7 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
     await expect(player.locator(".doc-section-edit textarea").first()).toHaveValue("自分の仕様を続けて編集");
     await expect(player.getByText("未保存の仕様書を復元しました。内容を確認して再保存してください。")).toHaveCount(0);
     await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.locator(".tabs").getByRole("button", { name: /投票/ }).click();
     await player.getByRole("searchbox", { name: "投票カードを検索" }).fill("API 予約 1");
     await expect(player.locator(".proposal")).toHaveCount(1);
     await player.getByRole("button", { name: /未投票だけ表示/ }).click();
@@ -141,12 +142,15 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
     }
     await host.locator(".stepper button").filter({ hasText: "ヒアリング・議論" }).click();
     await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await player.getByLabel("要求カードのタイトル", { exact: true }).fill("前のゲームだけの下書き");
     await host.getByRole("button", { name: "リセット", exact: true }).click();
     await expect(player.getByText("ゲーム開始を待っています")).toBeVisible();
     await host.locator('[data-scenario-id="restaurant"]').click();
     await host.getByRole("button", { name: /ゲーム開始/ }).click();
     await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await expect(player.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("");
     await player.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
     await expect(player.locator(".doc-section-edit textarea").first()).toHaveValue("");
