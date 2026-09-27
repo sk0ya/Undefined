@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import { useSubmission } from "./useSubmission";
+import { useTabDraft, DraftNotice } from "./useTabDraft";
+import { useRecordFilter } from "./RecordFilter";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { PlayerConnectionContext, usePlayerConnected } from "./ConnectionContext";
 import type { GameConn } from "./useGame";
 import { savedName } from "./useGame";
 import { normalizeRoomCode } from "./net/peer";
@@ -30,14 +34,17 @@ export default function PlayerApp({
   roomCode,
   connecting,
   onSubmitJoin,
+  onCancelJoin,
 }: {
   conn: GameConn;
   roomCode: string;
   /** ルームコード入力後、参加が確定するまでの待ち状態 */
   connecting: boolean;
   onSubmitJoin: (code: string, name: string) => void;
+  onCancelJoin: () => void;
 }) {
   const { state, status, joined, lastError, clearError, serverNow, send } = conn;
+  useEffect(() => { window.scrollTo(0, 0); }, [state?.phase]);
 
   if (!joined || !state) {
     return (
@@ -45,6 +52,7 @@ export default function PlayerApp({
         initialCode={roomCode}
         connecting={connecting}
         onJoin={onSubmitJoin}
+        onCancel={onCancelJoin}
         status={status}
         lastError={lastError}
         clearError={clearError}
@@ -72,6 +80,8 @@ export default function PlayerApp({
       <PhaseStepper phase={state.phase} />
       <main className="content">
         <PhaseGuide state={state} />
+        {status !== "open" && <div className="connection-notice" role="status">ホストとの接続を確認しています。入力内容はこの画面に残ります。再接続まで送信・編集はできません。</div>}
+        <PlayerConnectionContext.Provider value={status === "open"}>
         <PlayerPhaseContent
           state={state}
           send={send}
@@ -79,6 +89,7 @@ export default function PlayerApp({
           serverNow={serverNow}
           lastError={lastError}
         />
+        </PlayerConnectionContext.Provider>
       </main>
       <AnnouncementToasts items={state.announcements} />
       <ErrorToast message={lastError} onClose={clearError} />
@@ -97,6 +108,7 @@ function JoinScreen({
   initialCode,
   connecting,
   onJoin,
+  onCancel,
   status,
   lastError,
   clearError,
@@ -104,6 +116,7 @@ function JoinScreen({
   initialCode: string;
   connecting: boolean;
   onJoin: (code: string, name: string) => void;
+  onCancel: () => void;
   status: string;
   lastError: string | null;
   clearError: () => void;
@@ -115,7 +128,9 @@ function JoinScreen({
   return (
     <div className="join-screen">
       <div className="join-card">
-        <h1>📋 要件定義ゲーム</h1>
+        <div className="eyebrow">TEAM WORKSHOP</div>
+        <h1>質問から、いい仕様を。</h1>
+        <p className="join-product-name">要件定義ゲームへようこそ</p>
         <p className="muted">
           割り振られたロールになりきって、チームで要件定義書を作り上げましょう。
           <br />
@@ -124,12 +139,14 @@ function JoinScreen({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (ready) onJoin(code, name.trim());
+            if (ready && !connecting) onJoin(code, name.trim());
           }}
         >
-          <label className="sr-only" htmlFor="join-room-code">ルームコード</label>
+          <label className="field-label" htmlFor="join-room-code">ルームコード <span>ホストから届いた6文字</span></label>
           <input
             id="join-room-code"
+            disabled={connecting}
+            autoComplete="off"
             autoFocus={!initialCode}
             className="room-input"
             placeholder="ルームコード"
@@ -141,9 +158,11 @@ function JoinScreen({
             spellCheck={false}
             onChange={(e) => setCode(normalizeRoomCode(e.target.value))}
           />
-          <label className="sr-only" htmlFor="join-player-name">あなたの名前</label>
+          <label className="field-label" htmlFor="join-player-name">あなたの名前 <span>ニックネームでもOK</span></label>
           <input
             id="join-player-name"
+            disabled={connecting}
+            autoComplete="nickname"
             autoFocus={!!initialCode}
             placeholder="あなたの名前(ニックネーム可)"
             value={name}
@@ -158,13 +177,15 @@ function JoinScreen({
           ルームコードはホストの画面に表示されています(6文字)。
         </p>
         {lastError && (
-          <p className="error-text" onClick={clearError}>
+          <p className="error-text" role="alert" onClick={clearError}>
             ⚠ {lastError}
           </p>
         )}
+        {connecting && <button className="ghost" onClick={onCancel}>接続を中止して入力し直す</button>}
         {connecting && status !== "open" && (
           <p className="small muted pulse">ホストを探しています…</p>
         )}
+        <a className="host-entry-link" href="#host">主催者はこちら → ホスト画面を開く</a>
       </div>
     </div>
   );
@@ -434,32 +455,46 @@ function ProposalWorkspace({
   state: Snapshot;
   send: (m: ClientMessage) => void;
 }) {
+  const connected = usePlayerConnected();
   const cats = state.scenario?.categories ?? [];
-  const [category, setCategory] = useState(cats[0] ?? "");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const scope = `${state.myRoomId}:${state.myPlayerId}:proposal`;
+  const categoryDraft = useTabDraft(`${scope}:category`, cats[0] ?? "");
+  const titleDraft = useTabDraft(`${scope}:title`);
+  const descriptionDraft = useTabDraft(`${scope}:description`);
+  const { value: category, setValue: setCategory } = categoryDraft;
+  const { value: title, setValue: setTitle } = titleDraft;
+  const { value: description, setValue: setDescription } = descriptionDraft;
 
+  const submission = useSubmission(state.proposals);
+  const latestDraft = useRef({ title, description });
+  latestDraft.current = { title, description };
   const submit = () => {
-    if (!title.trim()) return;
+    if (!connected || !title.trim()) return;
+    if (!submission.begin(
+      (p) => p.authorId === state.myPlayerId && p.title === title.trim() && p.description === description.trim() && p.category === (category || cats[0] || ""),
+      () => {
+        if (latestDraft.current.title === title) setTitle("");
+        if (latestDraft.current.description === description) setDescription("");
+      },
+    )) return;
     send({
       type: "propose",
       category: category || cats[0] || "",
       title: title.trim(),
       description: description.trim(),
     });
-    setTitle("");
-    setDescription("");
   };
 
   return (
-    <div>
-      <div className="card">
+    <fieldset className="proposal-workspace interaction-fields" disabled={!connected || submission.waiting}>
+      <div className="card proposal-compose">
         <h3>要求カードを提出</h3>
         <p className="small muted">
           自分のロールとして必要な要件を提案しましょう。口頭での議論と併用してOKです。
         </p>
+        <DraftNotice restored={titleDraft.restored || descriptionDraft.restored} error={titleDraft.error || descriptionDraft.error || categoryDraft.error} />
         <div className="form-row">
-          <label className="sr-only" htmlFor="proposal-category">要求カードのカテゴリ</label>
+          <label className="field-label" htmlFor="proposal-category">要求カードのカテゴリ</label>
           <select id="proposal-category" value={category} onChange={(e) => setCategory(e.target.value)}>
             {cats.map((c) => (
               <option key={c} value={c}>
@@ -467,17 +502,17 @@ function ProposalWorkspace({
               </option>
             ))}
           </select>
-          <label className="sr-only" htmlFor="proposal-title">要求カードのタイトル</label>
+          <label className="field-label" htmlFor="proposal-title">要求カードのタイトル</label>
           <input
             id="proposal-title"
             placeholder="要求のタイトル(例: ロット単位のトレーサビリティ)"
             value={title}
             maxLength={60}
             onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
+            onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && submit()}
           />
         </div>
-        <label className="sr-only" htmlFor="proposal-description">要求カードの詳細・理由</label>
+        <label className="field-label" htmlFor="proposal-description">要求カードの詳細・理由</label>
         <textarea
           id="proposal-description"
           placeholder="詳細・理由(任意)。なぜ必要か、どこまでやるかを書くと採点で有利です"
@@ -486,12 +521,13 @@ function ProposalWorkspace({
           maxLength={500}
           onChange={(e) => setDescription(e.target.value)}
         />
+        {submission.message && <p role="status" className="small">{submission.message}</p>}
         <button onClick={submit} disabled={!title.trim()}>
           提出する
         </button>
       </div>
       <ProposalList state={state} send={send} />
-    </div>
+    </fieldset>
   );
 }
 
@@ -503,6 +539,11 @@ function ProposalList({
   send: (m: ClientMessage) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  const { shown, controls } = useRecordFilter({
+    items: state.proposals, label: "要求カード",
+    fields: (p) => [p.title, p.description, p.category, p.authorName, p.authorRole],
+    facets: [{ label: "カテゴリ", value: (p) => p.category }, { label: "提出者", value: (p) => p.authorName }],
+  });
   return (
     <div className="card">
       <h3>提出された要求カード({state.proposals.length})</h3>
@@ -516,7 +557,8 @@ function ProposalList({
           リアクションで温度感を伝えられます(投票ではないので何度でも変えられます)。
         </p>
       )}
-      {state.proposals.map((p) => {
+      {state.proposals.length > 0 && controls}
+      {shown.map((p) => {
         const isMine = p.authorId === state.myPlayerId;
         return (
           <ProposalCard
@@ -551,7 +593,9 @@ function ProposalList({
                     </button>
                     <button
                       className="ghost small-btn danger"
-                      onClick={() => send({ type: "delete_proposal", id: p.id })}
+                      onClick={() => {
+                        if (window.confirm(`「${p.title}」を削除しますか？削除すると元に戻せません。`)) send({ type: "delete_proposal", id: p.id });
+                      }}
                     >
                       削除
                     </button>
@@ -615,19 +659,25 @@ function VotingView({
   state: Snapshot;
   send: (m: ClientMessage) => void;
 }) {
+  const connected = usePlayerConnected();
   const [onlyUnvoted, setOnlyUnvoted] = useState(false);
   const total = state.proposals.length;
   const voted = state.proposals.filter((p) => p.myVote).length;
   const done = total > 0 && voted === total;
-  const shown = onlyUnvoted ? state.proposals.filter((p) => !p.myVote) : state.proposals;
+  const { shown: matches, controls } = useRecordFilter({
+    items: state.proposals, label: "投票カード",
+    fields: (p) => [p.title, p.description, p.category, p.authorName],
+    facets: [{ label: "カテゴリ", value: (p) => p.category }],
+  });
+  const shown = onlyUnvoted ? matches.filter((p) => !p.myVote) : matches;
 
   return (
-    <div className="card">
+    <fieldset className="card interaction-fields voting-workspace" disabled={!connected}>
       <div className="doc-editor-head">
         <h3>
           投票({voted}/{total})
         </h3>
-        {total > voted && (
+        {(total > voted || onlyUnvoted) && (
           <button className="ghost small-btn" onClick={() => setOnlyUnvoted((v) => !v)}>
             {onlyUnvoted ? "すべて表示" : `未投票だけ表示(${total - voted})`}
           </button>
@@ -648,7 +698,9 @@ function VotingView({
           各要求を最終的な要件定義書に「採用すべきか」を投票してください。多数決で仮決定され、同数はファシリテーターが裁定します。
         </p>
       )}
-      {shown.length === 0 && !done && <p className="muted">要求カードがありません</p>}
+      {total > 0 && controls}
+      {total === 0 && <p className="muted">要求カードがありません</p>}
+      {onlyUnvoted && matches.length > 0 && shown.length === 0 && !done && <p className="small muted">検索結果のカードは投票済みです。「すべて表示」または絞り込みを解除して他のカードを確認できます。</p>}
       {shown.map((p) => (
         <ProposalCard key={p.id} p={p} phase={state.phase} isMine={p.authorId === state.myPlayerId}>
           <div className="vote-buttons">
@@ -667,7 +719,7 @@ function VotingView({
           </div>
         </ProposalCard>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
@@ -685,19 +737,28 @@ function Tabs({
   onActiveLabelChange?: (label: string) => void;
 }) {
   const valid = useMemo(() => tabs.filter(([, node]) => node != null), [tabs]);
+  const prefix = useId();
+  const [visited, setVisited] = useState<Set<string>>(() => new Set([valid[0]?.[0]]));
   const [internalActiveLabel, setInternalActiveLabel] = useState(valid[0]?.[0] ?? "");
   const selectedLabel = activeLabel ?? internalActiveLabel;
   // タブ構成はフェーズで変わるので、位置ではなくラベルで選択を保持する
   const foundIdx = valid.findIndex(([label]) => label === selectedLabel);
   const activeIdx = foundIdx >= 0 ? foundIdx : 0;
+  const activeTabLabel = valid[activeIdx]?.[0];
+  useEffect(() => {
+    if (activeTabLabel) setVisited((prev) => prev.has(activeTabLabel) ? prev : new Set(prev).add(activeTabLabel));
+  }, [activeTabLabel]);
   return (
     <div>
-      <div className="tabs">
+      <nav className="tabs" aria-label="作業の切り替え">
         {valid.map(([label, , badges], i) => (
           <button
             key={label}
             className={"tab" + (i === activeIdx ? " tab-active" : "")}
+            aria-pressed={i === activeIdx}
+            aria-controls={`${prefix}-${i}`}
             onClick={() => {
+              setVisited((prev) => new Set(prev).add(valid[activeIdx][0]).add(label));
               setInternalActiveLabel(label);
               onActiveLabelChange?.(label);
             }}
@@ -710,8 +771,12 @@ function Tabs({
             ))}
           </button>
         ))}
-      </div>
-      {valid[activeIdx]?.[1]}
+      </nav>
+      {valid.map(([label, node], i) => (
+        <section key={label} id={`${prefix}-${i}`} hidden={i !== activeIdx} aria-label={label}>
+          {(visited.has(label) || i === activeIdx) && node}
+        </section>
+      ))}
     </div>
   );
 }

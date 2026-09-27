@@ -103,7 +103,7 @@ export function usePlayerGame(roomCode: string): GameConn {
       name: opts.name ?? "",
       token: localStorage.getItem(TOKEN_KEY) ?? "",
     });
-  }, []);
+  }, [roomCode]);
 
   const serverNow = useCallback(() => Date.now() + offsetRef.current, []);
   const clearError = useCallback(() => setLastError(null), []);

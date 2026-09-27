@@ -342,6 +342,8 @@ export class ClientSession {
   private retries = 0;
   private retryTimer: number | null = null;
   private destroyed = false;
+  private heartbeatTimer: number | null = null;
+  private lastReceivedAt = Date.now();
 
   constructor(code: string, ev: SessionEvents) {
     this.code = code;
@@ -350,6 +352,10 @@ export class ClientSession {
 
   start() {
     this.openPeer();
+    // A data channel can remain "open" after the host tab disappears.
+    this.heartbeatTimer = window.setInterval(() => {
+      if (this.conn && Date.now() - this.lastReceivedAt > HEARTBEAT_TIMEOUT_MS) this.scheduleRetry();
+    }, HEARTBEAT_INTERVAL_MS);
   }
 
   private openPeer() {
@@ -357,8 +363,9 @@ export class ClientSession {
     this.ev.onStatus("connecting");
     const peer = new Peer();
     this.peer = peer;
-    peer.on("open", () => this.connect());
+    peer.on("open", () => { if (!this.destroyed && this.peer === peer) this.connect(); });
     peer.on("error", (err: Error & { type?: string }) => {
+      if (this.destroyed || this.peer !== peer) return;
       if (err.type === "peer-unavailable") {
         // ホストがまだ開いていない/落ちた。少し待って繋ぎ直す
         this.scheduleRetry();
@@ -368,7 +375,7 @@ export class ClientSession {
       this.scheduleRetry();
     });
     peer.on("disconnected", () => {
-      if (!this.destroyed) peer.reconnect();
+      if (!this.destroyed && this.peer === peer) peer.reconnect();
     });
   }
 
@@ -376,15 +383,20 @@ export class ClientSession {
     if (this.destroyed || !this.peer) return;
     const conn = this.peer.connect(peerIdForRoom(this.code), { reliable: true });
     this.conn = conn;
+    this.lastReceivedAt = Date.now();
 
     conn.on("open", () => {
+      if (this.destroyed || this.conn !== conn) return;
+      this.lastReceivedAt = Date.now();
       this.retries = 0;
-      this.ev.onStatus("open");
+      this.ev.onStatus(this.joinMsg ? "connecting" : "open");
       // 再接続時は前回のjoinを自動で送り直す(トークンで同じロールに戻る)
       if (this.joinMsg) this.rawSend(this.joinMsg);
     });
 
     conn.on("data", (raw) => {
+      if (this.destroyed || this.conn !== conn) return;
+      this.lastReceivedAt = Date.now();
       let msg: ServerMessage;
       try {
         msg = typeof raw === "string" ? JSON.parse(raw) : (raw as ServerMessage);
@@ -393,15 +405,20 @@ export class ClientSession {
       }
       if (msg.type === "state") this.ev.onState(msg.state);
       else if (msg.type === "error") this.ev.onError(msg.message);
-      else if (msg.type === "joined") this.onJoined?.(msg);
+      else if (msg.type === "joined") {
+        if (msg.token && this.joinMsg?.type === "join") this.joinMsg = { ...this.joinMsg, token: msg.token };
+        this.onJoined?.(msg);
+        this.ev.onStatus("open");
+      }
       else if (msg.type === "ping") this.rawSend({ type: "pong" });
     });
 
     conn.on("close", () => {
+      if (this.destroyed || this.conn !== conn) return;
       this.ev.onStatus("closed");
       this.scheduleRetry();
     });
-    conn.on("error", () => this.scheduleRetry());
+    conn.on("error", () => { if (this.conn === conn) this.scheduleRetry(); });
   }
 
   onJoined: ((m: Extract<ServerMessage, { type: "joined" }>) => void) | null = null;
@@ -413,13 +430,17 @@ export class ClientSession {
     this.ev.onStatus("closed");
     this.retryTimer = window.setTimeout(() => {
       this.retryTimer = null;
+      const stale = this.conn;
+      this.conn = null;
       try {
-        this.conn?.close();
+        stale?.close();
       } catch {
         /* すでに閉じている */
       }
       // ピア自体が壊れている場合もあるので作り直す
-      this.peer?.destroy();
+      const stalePeer = this.peer;
+      this.peer = null;
+      stalePeer?.destroy();
       this.openPeer();
     }, delay);
   }
@@ -446,6 +467,7 @@ export class ClientSession {
   destroy() {
     this.destroyed = true;
     if (this.retryTimer !== null) window.clearTimeout(this.retryTimer);
+    if (this.heartbeatTimer !== null) window.clearInterval(this.heartbeatTimer);
     try {
       this.conn?.close();
     } catch {

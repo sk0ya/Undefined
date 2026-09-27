@@ -1,0 +1,145 @@
+import { test, expect } from "@playwright/test";
+
+test("再読み込み後に下書きを復元し、多数の要求と質問を検索・絞り込みできる", async ({ browser, baseURL }, testInfo) => {
+  test.setTimeout(180_000);
+  const contexts = await Promise.all([browser.newContext(), browser.newContext(), browser.newContext()]);
+  const [host, player, other] = await Promise.all(contexts.map((context) => context.newPage()));
+  const errors: string[] = [];
+  for (const page of [host, player, other]) page.on("pageerror", (e) => errors.push(e.message));
+  host.on("dialog", (dialog) => void dialog.accept());
+  await host.addInitScript(() => localStorage.setItem("reqgame_ai", JSON.stringify({ provider: "api", apiKey: "", remember: true })));
+  try {
+    await host.goto(`${baseURL}/#host`);
+    await expect(host.locator(".room-code-chip")).toBeVisible({ timeout: 30000 });
+    const code = (await host.locator(".room-code-chip").innerText()).replace(/[^A-Z0-9]/g, "");
+    for (const [page, name] of [[player, "あき"], [other, "うみ"]] as const) {
+      await page.goto(baseURL!);
+      await page.getByLabel("ルームコード").fill(code);
+      await page.getByLabel("あなたの名前").fill(name);
+      await page.getByRole("button", { name: "参加する", exact: true }).click();
+      await expect(page.getByText("ゲーム開始を待っています")).toBeVisible({ timeout: 30000 });
+      await expect(page).toHaveURL(new RegExp(`#${code}$`));
+    }
+    await host.locator('[data-scenario-id="restaurant"]').click();
+    await host.getByRole("button", { name: /ゲーム開始/ }).click();
+    await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.getByLabel("要求カードのタイトル", { exact: true }).fill("復元する予約の仕様");
+    await player.getByLabel("要求カードの詳細・理由", { exact: true }).fill("繁忙日でも電話受付を続ける");
+    await player.getByLabel("要求カードのカテゴリ", { exact: true }).selectOption({ index: 1 });
+    const category = await player.getByLabel("要求カードのカテゴリ", { exact: true }).inputValue();
+    await player.locator(".tabs").getByRole("button", { name: /ヒアリング/ }).click();
+    await player.locator(".npc-picker").getByRole("button", { name: /常連客/ }).click();
+    await player.getByLabel("NPCへの質問").fill("電話で予約したい理由は何ですか？");
+    await player.reload();
+    await expect(player.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("復元する予約の仕様", { timeout: 30000 });
+    await expect(player.getByLabel("要求カードの詳細・理由", { exact: true })).toHaveValue("繁忙日でも電話受付を続ける");
+    await expect(player.getByLabel("要求カードのカテゴリ", { exact: true })).toHaveValue(category);
+    await expect(other.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("");
+    await player.locator(".tabs").getByRole("button", { name: /ヒアリング/ }).click();
+    await expect(player.locator(".npc-chip-on")).toContainText("常連客");
+    await expect(player.getByLabel("NPCへの質問")).toHaveValue("電話で予約したい理由は何ですか？");
+    await player.getByRole("button", { name: "質問する", exact: true }).click();
+    await expect(host.getByLabel("常連客としての回答")).toBeVisible();
+    await host.getByLabel("常連客としての回答").fill("ネットより電話の方が相談しやすいです。");
+    await host.getByRole("searchbox", { name: "質問キューを検索" }).fill("存在しない質問");
+    await expect(host.locator(".queue-item")).toHaveCount(0);
+    await host.getByRole("button", { name: "絞り込みを解除" }).click();
+    await expect(host.getByLabel("常連客としての回答")).toHaveValue("ネットより電話の方が相談しやすいです。");
+    await host.reload();
+    await expect(host.getByLabel("常連客としての回答")).toHaveValue("ネットより電話の方が相談しやすいです。", { timeout: 30000 });
+    await host.getByRole("button", { name: "回答を送る", exact: true }).click();
+    await expect(player.getByText("ネットより電話の方が相談しやすいです。", { exact: true })).toBeVisible({ timeout: 30000 });
+    await player.getByLabel("NPCへの質問").fill("キャンセルしたいときはどうしていますか？");
+    await player.getByRole("button", { name: "質問する", exact: true }).click();
+    await expect(player.locator(".qa")).toHaveCount(2);
+    await player.getByLabel("ヒアリング記録の絞り込み：回答状況").selectOption("回答待ち");
+    await expect(player.locator(".qa")).toHaveCount(1);
+    await expect(player.locator(".qa")).toContainText("キャンセル");
+    await player.getByRole("button", { name: "絞り込みを解除" }).click();
+    await player.getByRole("searchbox", { name: "ヒアリング記録を検索" }).fill("相談");
+    await expect(player.locator(".qa")).toHaveCount(1);
+    await expect(player.locator(".qa")).toContainText("電話の方");
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByRole("button", { name: "提出する", exact: true }).click();
+    for (const [page, prefix] of [[player, "API 予約"], [other, "会計 集計"]] as const) {
+      for (let i = 1; i <= 8; i++) {
+        await page.getByLabel("要求カードのタイトル", { exact: true }).fill(`${prefix} ${i}`);
+        await page.getByRole("button", { name: "提出する", exact: true }).click();
+        await expect(page.getByText(`${prefix} ${i}`, { exact: true })).toBeVisible();
+      }
+    }
+    await expect(player.locator(".proposal")).toHaveCount(17);
+    await player.getByRole("searchbox", { name: "要求カードを検索" }).fill("ａｐｉ　予約");
+    await expect(player.locator(".proposal")).toHaveCount(8);
+    await player.getByLabel("要求カードの絞り込み：提出者").selectOption("うみ");
+    await expect(player.getByText(/条件に一致する項目がありません/)).toBeVisible();
+    await player.getByRole("button", { name: "絞り込みを解除" }).click();
+    await expect(player.locator(".proposal")).toHaveCount(17);
+    await player.getByLabel("要求カードの絞り込み：提出者").selectOption("うみ");
+    await expect(player.locator(".proposal")).toHaveCount(8);
+    await host.getByRole("button", { name: /ルームの成果物/ }).click();
+    await host.getByRole("searchbox", { name: "要求カードを検索" }).fill("集計");
+    await expect(host.locator(".proposal")).toHaveCount(8);
+    await player.reload();
+    await expect(player.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("", { timeout: 30000 });
+    await player.locator(".tabs").getByRole("button", { name: /ヒアリング/ }).click();
+    await expect(player.getByLabel("NPCへの質問")).toHaveValue("");
+    await player.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
+    await player.evaluate(() => {
+      const original = window.setTimeout.bind(window);
+      window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) =>
+        original(handler, timeout === 400 ? 10000 : timeout, ...args)) as typeof window.setTimeout;
+    });
+    await player.locator(".doc-section-edit textarea").first().fill("再読み込み前の未保存仕様");
+    await player.reload();
+    await expect(player.locator(".step-active")).toContainText("ヒアリング・議論", { timeout: 30000 });
+    await other.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
+    await other.locator(".doc-section-edit textarea").first().fill("別の参加者が保存した仕様");
+    await expect(other.locator(".doc-save-saved")).toBeVisible();
+    await player.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
+    await expect(player.locator(".doc-section-edit textarea").first()).toHaveValue("再読み込み前の未保存仕様");
+    await expect(player.getByRole("alert")).toContainText("同時編集を検知しました");
+    await expect(player.getByRole("alert")).toContainText("別の参加者が保存した仕様");
+    await player.getByRole("button", { name: "自分の下書きを再送" }).click();
+    await expect(player.locator(".doc-save-saved")).toBeVisible();
+    await expect(player.getByRole("alert")).toHaveCount(0);
+    const dialogs: string[] = [];
+    player.on("dialog", async (dialog) => { dialogs.push(dialog.message()); await dialog.accept(); });
+    await player.locator(".doc-section-edit textarea").first().fill("自分の仕様を続けて編集");
+    await expect(player.locator(".doc-save-saved")).toBeVisible();
+    expect(dialogs).toEqual([]);
+    await player.reload();
+    await expect(player.locator(".step-active")).toContainText("ヒアリング・議論", { timeout: 30000 });
+    await player.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
+    await expect(player.locator(".doc-section-edit textarea").first()).toHaveValue("自分の仕様を続けて編集");
+    await expect(player.getByText("未保存の仕様書を復元しました。内容を確認して再保存してください。")).toHaveCount(0);
+    await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.getByRole("searchbox", { name: "投票カードを検索" }).fill("API 予約 1");
+    await expect(player.locator(".proposal")).toHaveCount(1);
+    await player.getByRole("button", { name: /未投票だけ表示/ }).click();
+    await player.getByRole("button", { name: "👍 採用に賛成", exact: true }).click();
+    await expect(player.getByText(/検索結果のカードは投票済み/)).toBeVisible();
+    await player.getByRole("button", { name: "すべて表示", exact: true }).click();
+    await expect(player.getByRole("button", { name: "👍 採用に賛成", exact: true })).toHaveClass(/selected/);
+    await player.getByRole("button", { name: "絞り込みを解除" }).click();
+    await expect(player.locator(".proposal")).toHaveCount(17);
+    for (const [page, name] of [[player, "player-search"], [host, "host-search"]] as const) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
+    }
+    await host.locator(".stepper button").filter({ hasText: "ヒアリング・議論" }).click();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByLabel("要求カードのタイトル", { exact: true }).fill("前のゲームだけの下書き");
+    await host.getByRole("button", { name: "リセット", exact: true }).click();
+    await expect(player.getByText("ゲーム開始を待っています")).toBeVisible();
+    await host.locator('[data-scenario-id="restaurant"]').click();
+    await host.getByRole("button", { name: /ゲーム開始/ }).click();
+    await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await expect(player.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("");
+    await player.locator(".tabs").getByRole("button", { name: /仕様書/ }).click();
+    await expect(player.locator(".doc-section-edit textarea").first()).toHaveValue("");
+    expect(errors).toEqual([]);
+  } finally { await Promise.all(contexts.map((context) => context.close())); }
+});

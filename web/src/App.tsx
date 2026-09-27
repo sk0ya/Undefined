@@ -43,17 +43,33 @@ function PlayerRoot({ initialCode }: { initialCode: string }) {
     }
   }, [pendingName, conn.status, conn.joined, conn.join]);
 
-  // ルームコードを変えたら参加待ちを解除する
+  // A rejected name must release the form so the player can correct it.
   useEffect(() => {
-    if (conn.joined) setPendingName(null);
-  }, [conn.joined]);
+    if (conn.lastError && !conn.joined) setPendingName(null);
+  }, [conn.lastError, conn.joined]);
+
+  // 参加が完了したら待ち状態を解除する
+  useEffect(() => {
+    if (conn.joined) {
+      setPendingName(null);
+      const url = new URL(location.href);
+      url.hash = code;
+      history.replaceState(null, "", url);
+    }
+  }, [conn.joined, code]);
 
   return (
     <PlayerApp
       conn={conn}
       roomCode={code}
       connecting={!!pendingName && !conn.joined}
+      onCancelJoin={() => {
+        setPendingName(null);
+        setCode("");
+        conn.clearError();
+      }}
       onSubmitJoin={(nextCode, name) => {
+        conn.clearError();
         if (nextCode !== code) setCode(nextCode);
         setPendingName(name);
       }}

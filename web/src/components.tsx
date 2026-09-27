@@ -1,4 +1,8 @@
+import { useSubmission } from "./useSubmission";
+import { useTabDraft, DraftNotice, restoreDocumentDraft, serializeDocumentDraft } from "./useTabDraft";
+import { useRecordFilter } from "./RecordFilter";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePlayerConnected } from "./ConnectionContext";
 import type {
   Announcement,
   DocSection,
@@ -175,13 +179,13 @@ export function PhaseGuide({ state }: { state: Snapshot }) {
       <div className="phase-guide-compact-row">
         <div className="phase-guide-compact-main">
           <span className="eyebrow">いまやること</span>
-          <strong id="phase-guide-title">{guide.next}</strong>
+          <strong id="phase-guide-title">{guide.purpose}</strong>
         </div>
         <span className="phase-guide-compact-completion">完了: {guide.completion}</span>
       </div>
       <details className="phase-guide-details">
         <summary>進め方のヒントを表示</summary>
-        <p className="phase-guide-purpose">{guide.purpose}</p>
+        <p className="phase-guide-purpose">{guide.next}</p>
         <div className="phase-guide-grid">
           <GuideTaskList title="必ず行うこと" tasks={guide.must} />
           <GuideTaskList title="できれば行うこと" tasks={guide.nice} />
@@ -229,9 +233,13 @@ export function DiscussionActionHub({
       detail: "採用した内容を具体的に書く",
     },
   ];
-  const next = links.find((link) =>
-    link.action.includes("未回答") || link.action.includes("未記入") || link.action.includes("未提出"),
-  ) ?? links[0];
+  // Recommend work the player can do, rather than waiting for someone else's answer.
+  const nextLabel = hasNPCs && state.questions.length === 0
+    ? "🎤 ヒアリング"
+    : state.proposals.length === 0
+      ? "📝 要求カード"
+      : blankSections > 0 ? "📄 仕様書" : hasNPCs ? "🎤 ヒアリング" : "📝 要求カード";
+  const next = links.find((link) => link.label === nextLabel);
   return (
     <section className="discussion-action-hub" aria-label="議論の主要導線">
       <div className="discussion-action-head">
@@ -337,25 +345,35 @@ export function QuestionBoard({
   state: Snapshot;
   send: (m: ClientMessage) => void;
 }) {
+  const connected = usePlayerConnected();
   const npcs = state.scenario?.npcs ?? [];
-  const [npcId, setNpcId] = useState(npcs[0]?.id ?? "");
-  const [text, setText] = useState("");
+  const scope = `${state.myRoomId}:${state.myPlayerId}:question`;
+  const npcDraft = useTabDraft(`${scope}:npc`, npcs[0]?.id ?? "");
+  const textDraft = useTabDraft(`${scope}:text`);
+  const { value: npcId, setValue: setNpcId } = npcDraft;
+  const { value: text, setValue: setText } = textDraft;
   const npc = npcs.find((n) => n.id === npcId) ?? npcs[0];
 
+  const submission = useSubmission(state.questions);
+  const latestText = useRef(text);
+  latestText.current = text;
   const myCount = state.questions.filter((q) => q.askerId === state.myPlayerId).length;
   const waiting = state.questions.filter((q) => !q.answer).length;
 
   const submit = () => {
-    if (!text.trim() || !npc) return;
+    if (!connected || !text.trim() || !npc) return;
+    if (!submission.begin(
+      (q) => q.askerId === state.myPlayerId && q.npcId === npc.id && q.text === text.trim(),
+      () => { if (latestText.current === text) setText(""); },
+    )) return;
     unlockAudio();
     send({ type: "ask", npcId: npc.id, text: text.trim() });
-    setText("");
   };
 
   if (npcs.length === 0) return null;
 
   return (
-    <div>
+    <fieldset className="question-workspace interaction-fields" disabled={!connected || submission.waiting}>
       <div className="card ask-card">
         <div className="doc-editor-head">
           <h3>🎤 ヒアリング</h3>
@@ -367,6 +385,7 @@ export function QuestionBoard({
           NPCは<strong>聞かれたことだけ</strong>答えます。「なぜ」「例外のときは」「今はどうしている」——
           具体的に踏み込むほど、隠れた事情が出てきます。
         </p>
+        <DraftNotice restored={textDraft.restored} error={textDraft.error || npcDraft.error} />
         <div className="npc-picker">
           {npcs.map((n) => (
             <button
@@ -383,7 +402,7 @@ export function QuestionBoard({
           ))}
         </div>
         {npc && <p className="npc-opening prewrap">💬 {npc.opening}</p>}
-        <label className="sr-only" htmlFor="player-question-input">NPCへの質問</label>
+        <label className="field-label" htmlFor="player-question-input">NPCへの質問</label>
         <textarea
           id="player-question-input"
           rows={2}
@@ -392,9 +411,10 @@ export function QuestionBoard({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && (e.ctrlKey || e.metaKey)) submit();
           }}
         />
+        {submission.message && <p role="status" className="small">{submission.message}</p>}
         <div className="ask-actions">
           <button disabled={!text.trim()} onClick={submit}>
             質問する
@@ -406,7 +426,7 @@ export function QuestionBoard({
         </div>
       </div>
       <QuestionLog questions={state.questions} myPlayerId={state.myPlayerId} />
-    </div>
+    </fieldset>
   );
 }
 
@@ -420,6 +440,11 @@ export function QuestionLog({
   myPlayerId?: string;
   heading?: string;
 }) {
+  const { shown, controls } = useRecordFilter({
+    items: questions, label: "ヒアリング記録",
+    fields: (q) => [q.text, q.answer, q.askerName, q.npcName],
+    facets: [{ label: "回答状況", value: (q) => q.answer ? "回答済み" : "回答待ち" }, { label: "質問先", value: (q) => q.npcName }],
+  });
   // 新しい回答が届いたら知らせる
   const answered = questions.filter((q) => q.answer).length;
   const prevAnswered = useRef<number | null>(null);
@@ -436,8 +461,9 @@ export function QuestionLog({
           まだ質問がありません。まずは「いま困っていることは何ですか?」から始めてみましょう。
         </p>
       )}
+      {questions.length > 0 && controls}
       <div className="qa-list">
-        {[...questions].reverse().map((q) => (
+        {[...shown].reverse().map((q) => (
           <div key={q.id} className={"qa" + (q.askerId === myPlayerId ? " qa-mine" : "")}>
             <div className="qa-q">
               <span className="qa-asker">
@@ -1088,13 +1114,21 @@ export function DocEditor({
   serverNow?: () => number;
   lastError?: string | null;
 }) {
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [baselines, setBaselines] = useState<Record<string, string>>({});
-  const [saveStates, setSaveStates] = useState<Record<string, "saving" | "saved" | "error">>({});
+  const connected = usePlayerConnected();
+  const localDraft = useTabDraft(`doc:${roomId ?? state.myRoomId}:${state.myPlayerId ?? "host"}`);
+  const [restored] = useState(() => restoreDocumentDraft(localDraft.value, state.doc));
+  const [drafts, setDrafts] = useState<Record<string, string>>(restored.drafts);
+  const [baselines, setBaselines] = useState<Record<string, string>>(restored.baselines);
+  const [saveStates, setSaveStates] = useState<Record<string, "saving" | "saved" | "error">>(() =>
+    Object.fromEntries(Object.keys(restored.drafts).map((id) => [id, "error" as const])));
+  useEffect(() => {
+    localDraft.setValue(serializeDocumentDraft(drafts, baselines));
+  }, [drafts, baselines, localDraft.setValue]);
   const [saveTimes, setSaveTimes] = useState<Record<string, number>>({});
   const [conflicts, setConflicts] = useState<Record<string, { local: string; server: string }>>({});
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const timeouts = useRef<Record<string, number>>({});
   const lastErrorRef = useRef<string | null>(lastError ?? null);
   // 他の人の編集表示を数秒で消すため、定期的に再描画する
@@ -1157,12 +1191,25 @@ export function DocEditor({
     lastErrorRef.current = lastError ?? null;
   }, [lastError, drafts]);
 
-  const onEdit = (id: string, value: string) => {
+  useEffect(() => {
+    if (connected) return;
+    for (const timeout of Object.values(timeouts.current)) window.clearTimeout(timeout);
+    timeouts.current = {};
+    setSaveStates((prev) => {
+      const next = { ...prev };
+      for (const id of Object.keys(drafts)) next[id] = "error";
+      return next;
+    });
+  }, [connected]);
+
+  const onEdit = (id: string, value: string, base?: string) => {
+    if (!connected) return;
     const section = state.doc.find((s) => s.id === id);
-    if (!(id in drafts) && section) {
-      setBaselines((prev) => ({ ...prev, [id]: section.content }));
-    }
-    setDrafts((prev) => ({ ...prev, [id]: value }));
+    const nextBaselines = base !== undefined ? { ...baselines, [id]: base } : !(id in drafts) && section ? { ...baselines, [id]: section.content } : baselines;
+    const nextDrafts = { ...drafts, [id]: value };
+    localDraft.setValue(serializeDocumentDraft(nextDrafts, nextBaselines));
+    setBaselines(nextBaselines);
+    setDrafts(nextDrafts);
     setSaveStates((prev) => ({ ...prev, [id]: "saving" }));
     setConflicts((prev) => {
       const next = { ...prev };
@@ -1175,6 +1222,10 @@ export function DocEditor({
     }, 400);
   };
 
+  // Exports must match the visible editor, including edits awaiting acknowledgement.
+  const visibleState = { ...state, doc: state.doc.map((section) => ({
+    ...section, content: drafts[section.id] ?? section.content,
+  })) };
   const tmpl = state.scenario?.docTemplate ?? [];
   const blank = state.doc.filter((s) => !s.content.trim()).length;
 
@@ -1189,10 +1240,16 @@ export function DocEditor({
         </h3>
         <button
           className="ghost"
-          onClick={() => {
-            navigator.clipboard.writeText(buildDocMarkdown(state));
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+          onClick={async () => {
+            setCopyError(false);
+            try {
+              await navigator.clipboard.writeText(buildDocMarkdown(visibleState));
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            } catch {
+              setCopied(false);
+              setCopyError(true);
+            }
           }}
         >
           {copied ? "✓ コピーしました" : "Markdownをコピー"}
@@ -1200,7 +1257,7 @@ export function DocEditor({
         <button
           className="ghost"
           onClick={() => {
-            const content = buildDocMarkdown(state);
+            const content = buildDocMarkdown(visibleState);
             const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement("a");
@@ -1218,13 +1275,27 @@ export function DocEditor({
           🖨 印刷
         </button>
       </div>
+      {Object.keys(restored.drafts).length > 0 && Object.keys(drafts).length > 0 && <p className="small warn-text" role="status">未保存の仕様書を復元しました。内容を確認して再保存してください。</p>}
+      {localDraft.error && <p className="small error-text" role="status">下書きをブラウザに保存できません。共有の保存が終わるまで画面を閉じないでください。</p>}
+      {copyError && <p role="alert" className="error-text">コピーできませんでした。「Markdownを保存」でファイルをダウンロードできます。</p>}
+      {Object.keys(drafts).length > 0 && <p className="small muted">出力には、この画面の最新の入力を含みます。チームには、各項目が「保存済み」になってから共有されます。</p>}
+      <nav className="doc-index" aria-label="仕様書の項目へ移動">
+        {state.doc.map((section) => (
+          <button key={section.id} className="ghost small-btn" onClick={() => {
+            const field = document.getElementById(`doc-section-${section.id}`);
+            field?.scrollIntoView({ block: "center" });
+            field?.focus({ preventScroll: true });
+          }}>{section.title}<span>{(drafts[section.id] ?? section.content).trim() ? "記入済み" : "未記入"}</span></button>
+        ))}
+      </nav>
       <p className="small muted">
         全員で同時に編集できます。同じ欄を同時に書くと上書きされるので、担当を分けましょう(誰かが書いている欄には ✏️ が出ます)。「合意された要求一覧」は採用済みカードから自動で挿入されます。
       </p>
       {state.doc.map((s) => {
         const now = serverNow ? serverNow() : Date.now();
+        const myEditorName = state.isHost ? "ホスト" : state.players.find((p) => p.id === state.myPlayerId)?.name;
         const busy =
-          s.editedBy &&
+          s.editedBy && s.editedBy !== myEditorName &&
           s.editedAtMs &&
           now - s.editedAtMs < 10000 &&
           !(s.id in drafts); // 自分が編集中の欄には出さない
@@ -1240,8 +1311,13 @@ export function DocEditor({
                   ✓ 保存済み{saveTimes[s.id] ? ` ${new Date(saveTimes[s.id]).toLocaleTimeString()}` : ""}
                 </span>
               )}
-              {saveStates[s.id] === "error" && <span className="doc-save-state doc-save-error">⚠ 保存失敗</span>}
+              {saveStates[s.id] === "error" && <span className="doc-save-state doc-save-error">⚠ 未保存</span>}
             </h4>
+            {saveStates[s.id] === "error" && !conflicts[s.id] && s.id in drafts && (
+              <button className="ghost small-btn" disabled={!connected} onClick={() => onEdit(s.id, drafts[s.id])}>
+                接続を確認して再保存
+              </button>
+            )}
             {conflicts[s.id] && (
               <div className="doc-conflict" role="alert">
                 <strong>⚠ 同時編集を検知しました</strong>
@@ -1283,9 +1359,9 @@ export function DocEditor({
                 </button>
                 <button
                   className="small-btn"
+                  disabled={!connected}
                   onClick={() => {
-                    setBaselines((prev) => ({ ...prev, [s.id]: s.content }));
-                    onEdit(s.id, conflicts[s.id].local);
+                    onEdit(s.id, conflicts[s.id].local, s.content);
                   }}
                 >
                   自分の下書きを再送
@@ -1296,6 +1372,7 @@ export function DocEditor({
             <textarea
               id={`doc-section-${s.id}`}
               rows={4}
+              readOnly={!connected}
               placeholder={tmpl.find((t) => t.id === s.id)?.placeholder ?? ""}
               value={drafts[s.id] ?? s.content}
               onFocus={(e) => {
@@ -1473,6 +1550,7 @@ export function ReadyBar({
   send: (m: ClientMessage) => void;
   label: string;
 }) {
+  const connected = usePlayerConnected();
   const me = state.players.find((p) => p.id === state.myPlayerId);
   const mates = state.players.filter((p) => p.roomId && p.roomId === state.myRoomId);
   const readyCount = mates.filter((p) => p.ready).length;
@@ -1480,6 +1558,7 @@ export function ReadyBar({
   return (
     <div className={"ready-bar" + (me.ready ? " ready-on" : "")}>
       <button
+        disabled={!connected}
         className={me.ready ? "ghost" : "primary"}
         onClick={() => {
           unlockAudio();

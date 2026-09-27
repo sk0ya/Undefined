@@ -1,4 +1,7 @@
+import { useTabDraft, DraftNotice } from "./useTabDraft";
+import { useRecordFilter } from "./RecordFilter";
 import { useEffect, useState } from "react";
+import { Workspace } from "./Workspace";
 import type { AIKind, HostConn, PromptOpts } from "./useGame";
 import { aiEnabled, checkCodexBridge } from "./ai/client";
 import type { ClientMessage } from "./game/protocol";
@@ -47,6 +50,7 @@ export default function HostApp({ conn }: { conn: HostConn }) {
   const { state, status, lastError, clearError, serverNow, send, roomCode, restoredGame } = conn;
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [showRestoreNotice, setShowRestoreNotice] = useState(true);
+  useEffect(() => { window.scrollTo(0, 0); }, [state?.phase]);
 
   // ルームを開くまではゲーム画面を出さない(コードが決まらないと誰も入れない)
   if (!state || !roomCode) {
@@ -105,7 +109,7 @@ export default function HostApp({ conn }: { conn: HostConn }) {
             onSelect={setSelectedRoomId}
           />
         )}
-        <HostPhaseContent conn={conn} state={state} send={send} room={room} />
+        <HostPhaseContent key={state.phase} conn={conn} state={state} send={send} room={room} />
       </main>
       <AnnouncementToasts items={state.announcements} />
       <ErrorToast message={lastError} onClose={clearError} />
@@ -344,6 +348,7 @@ function TimerControls({
   serverNow: () => number;
 }) {
   const [min, setMin] = useState(10);
+  const [showOptions, setShowOptions] = useState(false);
   const [, refreshTimer] = useState(0);
   useEffect(() => {
     if (!timer.running) return;
@@ -372,6 +377,10 @@ function TimerControls({
               ? "＋5分延長"
               : `▶ 開始(${recommended}分)`}
       </button>
+      {mode === "over" && <span className="timer-expired-note">時間切れ: 延長または次へ</span>}
+      <button className="ghost small-btn timer-options-toggle" aria-expanded={showOptions} aria-controls="timer-extra"
+        onClick={() => setShowOptions((value) => !value)}>時間の変更・クリア</button>
+      <div id="timer-extra" className={"timer-extra" + (showOptions ? " timer-extra-open" : "")}>
       <span className="timer-presets-label small muted">時間を変更:</span>
       {TIMER_PRESETS.filter((m) => m !== recommended).map((m) => (
         <button key={m} className="ghost small-btn" onClick={() => start(m)}>
@@ -387,10 +396,10 @@ function TimerControls({
         onChange={(e) => setMin(Number(e.target.value))}
       />
       <button className="ghost small-btn" onClick={() => start(min)}>設定時間で開始</button>
-      {mode === "over" && <span className="timer-expired-note">時間切れ: 延長または次へ</span>}
       <button className="ghost" onClick={() => send({ type: "timer", action: "reset" })}>
         クリア
       </button>
+      </div>
     </div>
   );
 }
@@ -471,36 +480,39 @@ function HostPhaseContent({
       );
     case "discussion":
       return (
-        <div className="cols">
-          <div>
+        <Workspace label="管理者の作業" items={[
+          { id: "questions", label: "質問に回答", description: "全ルームの未回答を処理", badge: state.askQueue?.length, content: <>
             <AskQueuePanel conn={conn} state={state} send={send} />
-            {scoped.questions.length > 0 && (
-              <QuestionLog
-                questions={scoped.questions}
-                heading={`📒 ${room?.name ?? ""}のヒアリング記録(${scoped.questions.length})`}
-              />
-            )}
+            {!(state.scenario?.npcs?.length) && <div className="card"><h3>チームの議論を見守りましょう</h3><p>このシナリオでは参加者同士でヒアリングします。「ルームの成果物」から要求カードと仕様書を確認できます。</p></div>}
             <NPCReference conn={conn} state={state} />
-            <HostProposalBoard state={scoped} send={send} />
-          </div>
-          <div>
-            <FacilitationPanel state={state} />
-            <CausalChainPanel state={state} />
+          </> },
+          { id: "room", label: "ルームの成果物", description: `${room?.name ?? "選択中ルーム"}の要求・仕様書`, content: <div key={room?.id}>
+            <HostProposalBoard key={room?.id} state={scoped} send={send} />
+            <DocEditor state={scoped} send={send} roomId={room?.id} serverNow={conn.serverNow} lastError={conn.lastError} />
+            <QuestionLog questions={scoped.questions} heading={`📒 ${room?.name ?? ""}のヒアリング記録(${scoped.questions.length})`} />
+          </div> },
+          { id: "facilitation", label: "進行・イベント", description: "ヒント・台本・全員への連絡", content: <div className="cols"><div>
             <ScriptedEventsPanel state={state} send={send} />
-            <AIPanel conn={conn} state={state} kinds={["event", "advice"]} roomId={room?.id} />
-            <AISettings conn={conn} />
             <AnnounceForm state={state} send={send} />
             <AnnouncementLog items={state.announcements} />
+          </div><div>
+            <FacilitationPanel state={state} />
+            <CausalChainPanel state={state} />
+            <AIPanel conn={conn} state={state} kinds={["event", "advice"]} roomId={room?.id} />
+          </div></div> },
+          { id: "reference", label: "ホスト用資料", description: "シナリオ・ロール・隠れ要件", content: <>
+            {state.scenario && <ScenarioPanel sc={state.scenario} />}
             <HiddenReqPanel state={state} />
             <HostRoleOverview state={scoped} compact />
-          </div>
-        </div>
+          </> },
+          { id: "settings", label: "AI設定", description: "接続方法・自動回答の準備", content: <AISettings conn={conn} /> },
+        ]} />
       );
     case "voting":
       return (
         <div className="cols">
           <div>
-            <HostProposalBoard state={scoped} send={send} />
+            <HostProposalBoard key={room?.id} state={scoped} send={send} />
           </div>
           <div>
             <div className="card">
@@ -519,6 +531,7 @@ function HostPhaseContent({
         <div className="cols">
           <div>
             <DocEditor
+              key={room?.id}
               state={scoped}
               send={send}
               roomId={room?.id}
@@ -531,7 +544,7 @@ function HostPhaseContent({
             <AISettings conn={conn} />
             <TestCasePreview state={state} />
             <HiddenReqPanel state={state} />
-            <HostProposalBoard state={scoped} send={send} compact />
+            <HostProposalBoard key={room?.id} state={scoped} send={send} compact />
           </div>
         </div>
       );
@@ -579,7 +592,10 @@ function HostLobby({
                 <button
                   className="tag-x"
                   title="削除"
-                  onClick={() => send({ type: "remove_player", playerId: p.id })}
+                  aria-label={`${p.name}を参加者から削除`}
+                  onClick={() => {
+                    if (confirm(`${p.name}を参加者から削除しますか？`)) send({ type: "remove_player", playerId: p.id });
+                  }}
                 >
                   ×
                 </button>
@@ -589,7 +605,8 @@ function HostLobby({
         </div>
       </div>
       <div className="card">
-        <h3>シナリオを選択</h3>
+        <h3>② シナリオを選んで開始</h3>
+        <p className="small muted">初めてならヒアリング型がおすすめ。参加者が2人以上そろうと開始できます。</p>
         <div className="scenario-list">
           {(state.scenarios ?? []).map((sc) => (
             <button
@@ -641,7 +658,7 @@ function InviteCard({ conn }: { conn: HostConn }) {
   };
   return (
     <div className="card invite-card">
-      <h3>プレイヤーの参加方法</h3>
+      <h3>① 参加リンクを共有</h3>
       <p className="small muted">
         このページを開いたまま進行してください。<strong>このタブがゲームの本体</strong>です
         (閉じても、同じブラウザで開き直せば途中から再開できます)。
@@ -917,11 +934,18 @@ function HostProposalBoard({
   send: (m: ClientMessage) => void;
   compact?: boolean;
 }) {
+  const { shown, controls } = useRecordFilter({
+    items: state.proposals, label: "要求カード",
+    fields: (p) => [p.title, p.description, p.authorName, p.category],
+    facets: [{ label: "カテゴリ", value: (p) => p.category },
+      { label: "裁定", value: (p) => p.status === "adopted" ? "採用" : p.status === "rejected" ? "却下" : "審議中" }],
+  });
   return (
     <div className="card">
       <h3>要求カード({state.proposals.length})</h3>
       {state.proposals.length === 0 && <p className="muted">まだ提出されていません</p>}
-      {state.proposals.map((p) => (
+      {state.proposals.length > 0 && controls}
+      {shown.map((p) => (
         <ProposalCard key={p.id} p={p} phase={state.phase} isMine={false}>
           <div className="proposal-actions">
             <span className="small muted">裁定:</span>
@@ -939,7 +963,9 @@ function HostProposalBoard({
             {!compact && (
               <button
                 className="ghost small-btn danger"
-                onClick={() => send({ type: "delete_proposal", id: p.id })}
+                onClick={() => {
+                        if (window.confirm(`「${p.title}」を削除しますか？削除すると元に戻せません。`)) send({ type: "delete_proposal", id: p.id });
+                      }}
               >
                 削除
               </button>
@@ -1243,6 +1269,10 @@ function AskQueuePanel({
 }) {
   const queue = state.askQueue ?? [];
   const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
+  const { shown, controls } = useRecordFilter({
+    items: queue, label: "質問キュー", fields: (q) => [q.text, q.askerName, q.npcName, q.roomName],
+    facets: [{ label: "ルーム", value: (q) => q.roomName }, { label: "質問先", value: (q) => q.npcName }],
+  });
   if (!hasNPCs) return null;
 
   return (
@@ -1267,7 +1297,8 @@ function AskQueuePanel({
             : "AI未設定のため、あなたが回答を書きます(NPCカンペを参照)。複数ルームなら口頭ヒアリングとの併用がおすすめです。"}
       </p>
       {queue.length === 0 && <p className="muted">未回答の質問はありません</p>}
-      {queue.map((q) => (
+      {queue.length > 0 && controls}
+      {shown.map((q) => (
         <AnswerRow key={q.id} conn={conn} q={q} send={send} aiEnabled={state.aiEnabled} />
       ))}
     </div>
@@ -1285,7 +1316,8 @@ function AnswerRow({
   send: (m: ClientMessage) => void;
   aiEnabled: boolean;
 }) {
-  const [answer, setAnswer] = useState("");
+  const answerDraft = useTabDraft(`host:${conn.roomCode}:${q.id}:answer`);
+  const { value: answer, setValue: setAnswer } = answerDraft;
   const [busy, setBusy] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -1329,6 +1361,7 @@ function AnswerRow({
         <p className="small muted pulse">AIが回答を生成しています…</p>
       ) : (
         <>
+          <DraftNotice restored={answerDraft.restored} error={answerDraft.error} />
           <textarea
             aria-label={`${q.npcName}としての回答`}
             rows={2}

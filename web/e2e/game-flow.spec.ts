@@ -75,6 +75,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
       await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
+      await host.getByRole("button", { name: /進行・イベント/ }).click();
       const eventIdeas = host.locator("details.ideas");
       await eventIdeas.locator("summary").click();
       await expect(eventIdeas).toContainText("発生条件:");
@@ -343,6 +344,18 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       for (const phase of ["ヒアリング・議論", "合意形成(投票)", "要件定義書の仕上げ", "結果発表"]) {
         await host.getByRole("button", { name: /次のフェーズへ/ }).click();
         await expect(host.locator(".step.step-active .step-label")).toHaveText(phase);
+        if (phase === "要件定義書の仕上げ") {
+          const firstRoom = (await host.locator(".room-tab-active").textContent())!;
+          await host.locator(".doc-section-edit textarea").first().fill("このルーム専用の仕様");
+          await expect(host.locator(".doc-section-edit").first().getByText(/✓ 保存済み/)).toBeVisible();
+          await host.locator(".room-tab:not(.room-tab-active)").click();
+          await expect(host.locator(".doc-section-edit textarea").first()).toHaveValue("");
+          await host.locator(".doc-section-edit textarea").first().fill("別ルーム専用の仕様");
+          await expect(host.locator(".doc-section-edit").first().getByText(/✓ 保存済み/)).toBeVisible();
+          await host.locator(".room-tab:not(.room-tab-active)").click();
+          await expect(host.locator(".room-tab-active")).toHaveText(firstRoom);
+          await expect(host.locator(".doc-section-edit textarea").first()).toHaveValue("このルーム専用の仕様");
+        }
       }
       await expect(host.locator(".room-comparison")).toBeVisible();
       await expect(host.locator(".room-comparison-item")).toHaveCount(2);
