@@ -171,20 +171,20 @@ function GuideTaskList({ title, tasks }: { title: string; tasks: GuideTask[] }) 
   );
 }
 
-/** 現在の目的・行動・完了条件を、タブより先に常に表示する。 */
+/** 進め方が必要なときだけ、目的・行動・完了条件を開く。 */
 export function PhaseGuide({ state }: { state: Snapshot }) {
   const guide = buildPhaseGuide(state);
   return (
     <section className="phase-guide" aria-labelledby="phase-guide-title">
-      <div className="phase-guide-compact-row">
-        <div className="phase-guide-compact-main">
-          <span className="eyebrow">いまやること</span>
-          <strong id="phase-guide-title">{guide.purpose}</strong>
-        </div>
-        <span className="phase-guide-compact-completion">完了: {guide.completion}</span>
-      </div>
-      <details className="phase-guide-details">
+      <details className="phase-guide-details" key={state.phase}>
         <summary>進め方のヒントを表示</summary>
+        <div className="phase-guide-compact-row">
+          <div className="phase-guide-compact-main">
+            <span className="eyebrow">いまやること</span>
+            <strong id="phase-guide-title">{guide.purpose}</strong>
+          </div>
+          <span className="phase-guide-compact-completion">完了: {guide.completion}</span>
+        </div>
         <p className="phase-guide-purpose">{guide.next}</p>
         <div className="phase-guide-grid">
           <GuideTaskList title="必ず行うこと" tasks={guide.must} />
@@ -347,6 +347,7 @@ export function QuestionBoard({
 }) {
   const connected = usePlayerConnected();
   const npcs = state.scenario?.npcs ?? [];
+  const [composeOpen, setComposeOpen] = useState(state.questions.length === 0);
   const scope = `${state.myRoomId}:${state.myPlayerId}:question`;
   const npcDraft = useTabDraft(`${scope}:npc`, npcs[0]?.id ?? "");
   const textDraft = useTabDraft(`${scope}:text`);
@@ -374,7 +375,8 @@ export function QuestionBoard({
 
   return (
     <fieldset className="question-workspace interaction-fields" disabled={!connected || submission.waiting}>
-      <div className="card ask-card">
+      <details className="card ask-card compose-disclosure" open={composeOpen} onToggle={(e) => setComposeOpen(e.currentTarget.open)}>
+        <summary>＋ NPCに質問する</summary>
         <div className="doc-editor-head">
           <h3>🎤 ヒアリング</h3>
           <span className="small muted">
@@ -424,7 +426,7 @@ export function QuestionBoard({
             {state.autoAnswer ? "AIが即座に答えます" : "ホストが回答します"}
           </span>
         </div>
-      </div>
+      </details>
       <QuestionLog questions={state.questions} myPlayerId={state.myPlayerId} />
     </fieldset>
   );
@@ -461,7 +463,7 @@ export function QuestionLog({
           まだ質問がありません。まずは「いま困っていることは何ですか?」から始めてみましょう。
         </p>
       )}
-      {questions.length > 0 && controls}
+      {questions.length > 0 && <details className="filter-disclosure"><summary>ヒアリング記録を検索・絞り込み</summary>{controls}</details>}
       <div className="qa-list">
         {[...shown].reverse().map((q) => (
           <div key={q.id} className={"qa" + (q.askerId === myPlayerId ? " qa-mine" : "")}>

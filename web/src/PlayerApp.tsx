@@ -13,7 +13,6 @@ import {
   AnnouncementToasts,
   ConnBadge,
   DocEditor,
-  DiscussionActionHub,
   ErrorToast,
   Leaderboard,
   PhaseGuide,
@@ -83,6 +82,7 @@ export default function PlayerApp({
         {status !== "open" && <div className="connection-notice" role="status">ホストとの接続を確認しています。入力内容はこの画面に残ります。再接続まで送信・編集はできません。</div>}
         <PlayerConnectionContext.Provider value={status === "open"}>
         <PlayerPhaseContent
+          key={state.scenario?.id ?? "lobby"}
           state={state}
           send={send}
           myRole={myRole}
@@ -206,7 +206,7 @@ function PlayerPhaseContent({
 }) {
   const hearing = state.scenario?.type === "hearing";
   const hasNPCs = (state.scenario?.npcs?.length ?? 0) > 0;
-  const [discussionTab, setDiscussionTab] = useState("📝 要求カード");
+  const [discussionTab, setDiscussionTab] = useState(hasNPCs ? "🎤 ヒアリング" : "📝 要求カード");
   const [seenDiscussion, setSeenDiscussion] = useState<Record<string, Set<string>>>(() => ({
     "🎤 ヒアリング": new Set(state.questions.map((q) => q.id)),
     "📝 要求カード": new Set(state.proposals.map((p) => p.id)),
@@ -235,7 +235,7 @@ function PlayerPhaseContent({
     "📖 シナリオ",
     state.scenario ? <ScenarioPanel sc={state.scenario} key="s" /> : null,
   ];
-  // 議論中の未対応数はDiscussionActionHubと各タブに表示する。
+  // 未対応数は作業を選ぶタブに集約する。
   const docTab = (heading?: string, badges?: TabBadge[]): Tab => [
     heading ? "📄 仕様書(最終確認)" : "📄 仕様書",
     <DocEditor state={state} send={send} heading={heading} serverNow={serverNow} lastError={lastError} key="d" />,
@@ -268,7 +268,6 @@ function PlayerPhaseContent({
       return (
         <>
           <AnnouncementLog items={state.announcements} />
-          <DiscussionActionHub state={state} onOpen={openDiscussionTab} />
           <Tabs
             activeLabel={discussionTab}
             onActiveLabelChange={openDiscussionTab}
@@ -487,8 +486,8 @@ function ProposalWorkspace({
 
   return (
     <fieldset className="proposal-workspace interaction-fields" disabled={!connected || submission.waiting}>
-      <div className="card proposal-compose">
-        <h3>要求カードを提出</h3>
+      <details className="card proposal-compose compose-disclosure">
+        <summary>＋ 要求カードを作成</summary>
         <p className="small muted">
           自分のロールとして必要な要件を提案しましょう。口頭での議論と併用してOKです。
         </p>
@@ -525,7 +524,7 @@ function ProposalWorkspace({
         <button onClick={submit} disabled={!title.trim()}>
           提出する
         </button>
-      </div>
+      </details>
       <ProposalList state={state} send={send} />
     </fieldset>
   );
@@ -557,7 +556,7 @@ function ProposalList({
           リアクションで温度感を伝えられます(投票ではないので何度でも変えられます)。
         </p>
       )}
-      {state.proposals.length > 0 && controls}
+      {state.proposals.length > 0 && <details className="filter-disclosure"><summary>要求カードを検索・絞り込み</summary>{controls}</details>}
       {shown.map((p) => {
         const isMine = p.authorId === state.myPlayerId;
         return (

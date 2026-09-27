@@ -32,6 +32,8 @@ test("送信が届かない場合も下書きを保持し、削除をキャン�
     await host.locator('[data-scenario-id="restaurant"]').click();
     await host.getByRole("button", { name: /ゲーム開始/ }).click();
     await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     const title = player.getByLabel("要求カードのタイトル", { exact: true });
     await title.fill("消えてはいけない要求");
     await drop(true);
@@ -41,6 +43,8 @@ test("送信が届かない場合も下書きを保持し、削除をキャン�
     await expect(player.getByText(/送信を確認できませんでした/)).toBeVisible({ timeout: 18000 });
     await expect(title).toBeEnabled();
     await player.reload();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await expect(title).toHaveValue("消えてはいけない要求", { timeout: 30000 });
     await player.getByRole("button", { name: "提出する", exact: true }).click();
     await expect(title).toHaveValue("");

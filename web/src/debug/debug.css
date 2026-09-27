@@ -1,0 +1,6 @@
+.debug-toolbar { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 20px; background: #172b36; color: #fff; border-bottom: 3px solid #5bceb1; box-shadow: 0 3px 14px #0002; }
+.debug-toolbar small { display: block; color: #b9d5d5; font-size: 11px; margin-top: 3px; }
+.debug-toolbar label { display: grid; gap: 3px; font-size: 11px; }
+.debug-toolbar select { width: auto; max-width: 240px; padding: 6px 8px; background: #fff; color: #172b36; border: 1px solid #b9d5d5; border-radius: 6px; }
+.debug-toolbar button { background: #e2f5ef; color: #172b36; padding: 8px 12px; }
+.debug-toolbar a { color: #b7f1df; font-size: 12px; }

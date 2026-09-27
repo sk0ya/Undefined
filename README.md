@@ -143,6 +143,7 @@ GitHub Pagesの公開画面を使う場合も、ブリッジを実行してい�
 cd web
 npm install
 npm run dev                        # http://localhost:5173/ (/#hostでホスト画面)
+npm run debug                      # サンプル入り画面プレビューを起動しブラウザで開く
 npm run host                       # ViteとCodexブリッジを同時起動(ローカルhost向け)
 npm test                           # ゲームロジック・AIプロンプトのテスト
 npm run validate:scenarios         # シナリオ定義の検証
@@ -153,6 +154,13 @@ npm run test:e2e                   # Chromiumでhost/プレイヤーの主要フ
 ```
 
 ブラウザテストを初めて実行する場合は、先に `npx playwright install chromium` を実行してください。GitHub Actionsでは依存関係付きのChromiumをインストールしてからE2Eを実行します。
+
+### 画面のデバッグ
+
+`cd web` → `npm run debug` で `http://127.0.0.1:5173/#debug` を開きます。通常の `npm run dev` でも `/#debug` にアクセスできます。
+上部のバーからホスト・参加者・参加フォーム、全6フェーズ、シナリオ、参加者を切り替えられます。6人・2ルームの要求カード・質問・仕様書・採点サンプルを用意しているため、接続やゲーム進行を待つ必要はありません。
+要求の追加や投票などはメモリ上のゲームに反映されます。「サンプルをリセット」または再読み込みで初期化されます。AI連携は無効です。ゲーム本体の保存データは更新しませんが、画面共通の表示設定や入力下書きは通常画面と共通です。
+この入口とサンプルは開発サーバー専用で、公開用ビルドには含まれません。停止は `Ctrl+C` です。
 
 CIでは `npm ci`、`npm test`、`npm run validate:scenarios:strict`、Playwright/ChromiumのE2E、`npm run build` を順に実行します。
 

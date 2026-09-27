@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "debug": "vite --host 127.0.0.1 --port 5173 --strictPort --open /#debug",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "esbuild test/engine.test.ts test/ai.test.ts --bundle --platform=node --format=esm --loader:.json=json --outdir=node_modules/.cache/reqgame-tests && node --test node_modules/.cache/reqgame-tests/engine.test.js node_modules/.cache/reqgame-tests/ai.test.js",

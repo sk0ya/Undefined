@@ -38,6 +38,8 @@ test("参加エラーを修正し、下書きを失わず質問・要求・管�
     await host.getByRole("button", { name: /次のフェーズへ/ }).click();
     await expect(player.locator("#phase-guide-title")).toContainText("事実と例外を聞き出し");
 
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await player.getByLabel("要求カードのタイトル").fill("電話予約の重複を防ぐ");
     await player.getByLabel("要求カードの詳細・理由").fill("電話とネット予約で同じ空席情報を使う");
     await player.getByLabel("要求カードのタイトル").dispatchEvent("keydown", { key: "Enter", isComposing: true });
@@ -49,7 +51,7 @@ test("参加エラーを修正し、下書きを失わず質問・要求・管�
     await expect(player.getByLabel("NPCへの質問")).toHaveValue("電話予約は誰が記録していますか？");
     await player.getByRole("button", { name: "質問する", exact: true }).click();
     await expect(host.getByLabel("店長としての回答")).toBeVisible();
-    await expect(player.locator(".discussion-action-primary")).toContainText("要求カード");
+    await expect(player.locator(".tabs").getByRole("button", { name: /要求カード/ })).toBeVisible();
     await host.getByLabel("店長としての回答").fill("ホール担当が紙の台帳に記録します。");
     await host.getByRole("button", { name: /進行・イベント/ }).click();
     await host.getByRole("button", { name: /質問に回答/ }).click();

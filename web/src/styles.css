@@ -1459,7 +1459,7 @@ button.big-btn { width: 100%; padding: 14px; font-size: 1.02rem; margin-top: 12p
 
 /* スクロール中は内容の上に浮くので、半透明にして下が透けるようにする */
 .ready-bar {
-  position: sticky;
+  position: static;
   bottom: 16px;
   display: flex;
   align-items: center;
@@ -1864,3 +1864,17 @@ input:disabled { background: var(--ink-100); color: var(--ink-500); }
   .host-cockpit { min-width: 0; }
   .host-controls .control-row > .danger { margin-left: 0; }
 }
+
+/* Keep the selected task first; reveal tools and guidance on request. */
+.player-app .phase-guide { padding: 0; margin-bottom: 12px; background: transparent; border: 0; box-shadow: none; }
+.player-app .phase-guide-details { margin: 0; }
+.player-app .phase-guide-details > summary { padding: 8px 0; }
+.player-app .phase-guide-details[open] { padding: 16px; background: white; border: 1px solid var(--ink-200); border-radius: 12px; }
+.player-app .proposal-workspace, .player-app .question-workspace { display: block; }
+.compose-disclosure > summary { cursor: pointer; color: var(--brand-600); font-weight: 700; }
+.compose-disclosure:not([open]) { padding: 14px 20px; background: var(--brand-50); border-color: var(--brand-100); }
+.compose-disclosure[open] > summary { margin-bottom: 18px; }
+.filter-disclosure { margin: 12px 0; }
+.filter-disclosure > summary { cursor: pointer; font-size: 13px; color: var(--ink-500); }
+.filter-disclosure[open] > summary { margin-bottom: 12px; }
+.player-app .ready-bar { box-shadow: none; backdrop-filter: none; }

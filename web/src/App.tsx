@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import PlayerApp from "./PlayerApp";
 import HostApp from "./HostApp";
 import { parseRoute, savedName, savedPlayerRoomCode, useHostGame, usePlayerGame } from "./useGame";
+
+const DebugPreview = import.meta.env.DEV ? lazy(() => import("./debug/DebugPreview")) : null;
 
 /**
  * ルーティングはハッシュのみ。GitHub Pages はリポジトリ名のサブパス配下で
@@ -19,6 +21,9 @@ export default function App() {
   }, []);
 
   // ホストとプレイヤーでフックの構成が違うので、コンポーネントごと切り替える
+  if (DebugPreview && location.hash.startsWith("#debug")) {
+    return <Suspense fallback={<p>プレビューを準備しています…</p>}><DebugPreview /></Suspense>;
+  }
   return route.isHost ? <HostRoot /> : <PlayerRoot initialCode={route.roomCode} />;
 }
 

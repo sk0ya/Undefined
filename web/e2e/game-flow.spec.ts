@@ -83,21 +83,24 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(eventIdeas).toContainText("難易度:");
 
       await playerOne.setViewportSize({ width: 390, height: 844 });
-      await expect(playerOne.locator(".discussion-action-hub")).toBeVisible();
+      await expect(playerOne.locator(".tabs")).toBeVisible();
       expect(
         await playerOne.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       ).toBe(true);
       await playerTwo.reload();
       await expect(playerTwo.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論", { timeout: 30_000 });
       await playerOne
-        .locator(".discussion-action-hub")
+        .locator(".tabs")
         .getByRole("button", { name: /📝 要求カード/ })
         .click();
+      await playerOne.getByText("＋ 要求カードを作成", { exact: true }).click();
       await playerOne.getByPlaceholder(/要求のタイトル/).fill("ブラウザE2Eの要求");
       await playerOne.getByRole("button", { name: "提出する" }).click();
       await expect(playerOne.getByText("ブラウザE2Eの要求")).toBeVisible();
       await expect(playerOne.getByRole("button", { name: /📝 要求カード.*自分の提出 1/ })).toBeVisible();
 
+      await playerTwo.locator(".tabs").getByRole("button", { name: /📝 要求カード/ }).click();
+      await playerTwo.getByText("＋ 要求カードを作成", { exact: true }).click();
       await playerTwo.getByPlaceholder(/要求のタイトル/).fill("他メンバーからの要求");
       await playerTwo.getByRole("button", { name: "提出する" }).click();
       await expect(playerOne.getByText("他メンバーからの要求")).toBeVisible();
@@ -146,9 +149,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(playerOne.locator(".topbar")).toBeHidden();
       await expect(playerOne.locator(".phase-guide")).toBeHidden();
       await playerOne.emulateMedia({ media: "screen" });
-      const discussionHub = playerOne.locator(".discussion-action-hub");
-      await discussionHub.locator(".discussion-action-more summary").click();
-      await discussionHub.getByRole("button", { name: /📝 要求カード/ }).click();
+      await playerOne.locator(".tabs").getByRole("button", { name: /📝 要求カード/ }).click();
 
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("合意形成(投票)");

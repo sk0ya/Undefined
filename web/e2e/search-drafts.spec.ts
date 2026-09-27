@@ -23,6 +23,8 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
     await host.locator('[data-scenario-id="restaurant"]').click();
     await host.getByRole("button", { name: /ゲーム開始/ }).click();
     await host.getByRole("button", { name: /次のフェーズへ/ }).click();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await player.getByLabel("要求カードのタイトル", { exact: true }).fill("復元する予約の仕様");
     await player.getByLabel("要求カードの詳細・理由", { exact: true }).fill("繁忙日でも電話受付を続ける");
     await player.getByLabel("要求カードのカテゴリ", { exact: true }).selectOption({ index: 1 });
@@ -31,9 +33,13 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
     await player.locator(".npc-picker").getByRole("button", { name: /常連客/ }).click();
     await player.getByLabel("NPCへの質問").fill("電話で予約したい理由は何ですか？");
     await player.reload();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await expect(player.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("復元する予約の仕様", { timeout: 30000 });
     await expect(player.getByLabel("要求カードの詳細・理由", { exact: true })).toHaveValue("繁忙日でも電話受付を続ける");
     await expect(player.getByLabel("要求カードのカテゴリ", { exact: true })).toHaveValue(category);
+    await other.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await other.getByText("＋ 要求カードを作成", { exact: true }).click();
     await expect(other.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("");
     await player.locator(".tabs").getByRole("button", { name: /ヒアリング/ }).click();
     await expect(player.locator(".npc-chip-on")).toContainText("常連客");
@@ -52,6 +58,7 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
     await player.getByLabel("NPCへの質問").fill("キャンセルしたいときはどうしていますか？");
     await player.getByRole("button", { name: "質問する", exact: true }).click();
     await expect(player.locator(".qa")).toHaveCount(2);
+    await player.getByText("ヒアリング記録を検索・絞り込み", { exact: true }).click();
     await player.getByLabel("ヒアリング記録の絞り込み：回答状況").selectOption("回答待ち");
     await expect(player.locator(".qa")).toHaveCount(1);
     await expect(player.locator(".qa")).toContainText("キャンセル");
@@ -69,6 +76,7 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
       }
     }
     await expect(player.locator(".proposal")).toHaveCount(17);
+    await player.getByText("要求カードを検索・絞り込み", { exact: true }).click();
     await player.getByRole("searchbox", { name: "要求カードを検索" }).fill("ａｐｉ　予約");
     await expect(player.locator(".proposal")).toHaveCount(8);
     await player.getByLabel("要求カードの絞り込み：提出者").selectOption("うみ");
@@ -81,6 +89,8 @@ test("再読み込み後に下書きを復元し、多数の要求と質問を�
     await host.getByRole("searchbox", { name: "要求カードを検索" }).fill("集計");
     await expect(host.locator(".proposal")).toHaveCount(8);
     await player.reload();
+    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
+    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
     await expect(player.getByLabel("要求カードのタイトル", { exact: true })).toHaveValue("", { timeout: 30000 });
     await player.locator(".tabs").getByRole("button", { name: /ヒアリング/ }).click();
     await expect(player.getByLabel("NPCへの質問")).toHaveValue("");
