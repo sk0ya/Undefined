@@ -1,3 +1,4 @@
+import { buildScorePrompt } from "../src/ai/prompts";
 // ゲームエンジンのテスト。`npm test` で実行。
 //
 // 特に重視しているのは「スナップショットが秘密を漏らさないこと」。
@@ -907,4 +908,44 @@ test("同じフェーズへの遷移はエンジン状態を変更しない", ()
   g.setPhase("discussion");
   assert.deepEqual(g.timer, timer);
   assert.deepEqual(Object.values(g.players).map((player) => player.ready), ready);
+});
+
+
+test("カードと投票なしで仕様書から採点へ進み、秘密の目標を保持する", () => {
+  const { g, ids } = startGame();
+  const mine = asPlayer(g, ids[0]).scenario!.roles.find((r) => r.id === g.players[ids[0]].roleId)!;
+  assert.ok(mine.secretConditions!.length > 0);
+  assert.equal(g.phase, "discussion");
+  const room = g.roomOf(ids[0])!;
+  g.editDoc(room.id, room.doc[0].id, "電話予約とネット予約で同じ空席を参照する", ids[0], false);
+  g.nextPhase();
+  assert.equal(g.phase, "finalize");
+  assert.equal(room.proposals.length, 0);
+  assert.equal(room.doc[0].content, "電話予約とネット予約で同じ空席を参照する");
+  const prompt = buildScorePrompt(g, room.id);
+  assert.ok(prompt.includes("カードがないことを減点せず"));
+  assert.ok(prompt.includes(mine.secretConditions![0].text));
+  assert.ok(prompt.includes(room.doc[0].content));
+  g.nextPhase();
+  assert.equal(g.phase, "results");
+});
+
+test("仕様書だけを記入したルームを停滞と判定しない", () => {
+  const { g } = startGame();
+  g.setPhase("discussion");
+  const room = asHost(g).rooms![0];
+  room.players.forEach((p) => { p.connected = true; p.ready = false; });
+  room.doc[0].content = "チームで決めた仕様";
+  assert.equal(roomAttention(room, "discussion").level, "normal");
+});
+
+
+test("旧準備フェーズの保存データを作成フェーズとして復帰する", () => {
+  const { g, ids } = startGame();
+  g.setPhase("briefing");
+  const before = asPlayer(g, ids[0]);
+  const restored = newGame();
+  restored.restore(g.serialize());
+  assert.equal(restored.phase, "discussion");
+  assert.deepEqual(asPlayer(restored, ids[0]).scenario?.roles, before.scenario?.roles);
 });

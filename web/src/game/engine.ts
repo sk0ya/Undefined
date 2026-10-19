@@ -303,7 +303,7 @@ export class GameEngine {
 
     this.announcements = [];
     this.timer = { running: false, endsAtMs: 0, remainingMs: 0, totalMs: 0 };
-    this.phase = "briefing";
+    this.phase = "discussion";
   }
 
   reset() {
@@ -336,7 +336,8 @@ export class GameEngine {
 
   nextPhase() {
     const i = PHASE_ORDER.indexOf(this.phase);
-    if (i >= 0 && i + 1 < PHASE_ORDER.length) this.setPhase(PHASE_ORDER[i + 1]);
+    if (this.phase === "discussion") this.setPhase("finalize");
+    else if (i >= 0 && i + 1 < PHASE_ORDER.length) this.setPhase(PHASE_ORDER[i + 1]);
   }
 
   setReady(playerId: string, ready: boolean) {
@@ -882,7 +883,7 @@ export class GameEngine {
 
   restore(d: PersistedGame) {
     if (d?.v !== 1) return;
-    this.phase = d.phase;
+    this.phase = d.phase === "briefing" ? "discussion" : d.phase;
     this.scenarioId = d.scenarioId;
     this.players = d.players ?? {};
     this.playerOrder = d.playerOrder ?? [];

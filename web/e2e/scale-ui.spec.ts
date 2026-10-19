@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("40人10ルームの画面で質問を絞り込み、全ルームの成果物へ移動できる", async ({ page }, testInfo) => {
   await page.route("**/src/main.tsx*", async (route) => {
     const response = await route.fetch();
-    const body = (await response.text()).replace('"/src/App.tsx"', '"/test/fixtures/ScaleHost.tsx"');
+    const body = (await response.text()).replace(/"\/src\/App\.tsx(?:\?[^"\s]*)?"/, '"/test/fixtures/ScaleHost.tsx"');
     expect(body).toContain('/test/fixtures/ScaleHost.tsx');
     await route.fulfill({ response, body });
   });
@@ -25,8 +25,8 @@ test("40人10ルームの画面で質問を絞り込み、全ルームの成果�
   for (let i = 1; i <= 10; i++) {
     await page.locator(".room-tabs").getByRole("button", { name: new RegExp(`ルーム${i}(?!\\d)`) }).click();
     await expect(page.locator(".host-selected-room")).toHaveText(`対象: ルーム${i}`);
-    await expect(page.locator(".proposal")).toHaveCount(4);
-    await expect(page.locator(".proposal-title").first()).toHaveText(`ルーム${i}の要求1`);
+    await expect(page.locator(".doc-editor")).toBeVisible();
+    await expect(page.locator(".proposal")).toHaveCount(0);
   }
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });

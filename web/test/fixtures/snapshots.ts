@@ -12,7 +12,7 @@ export function snapshotFixture(phase: Phase): Snapshot {
 
   const ids = ["あき", "いつき", "うみ", "えま"].map((name) => g.join(name, "").player.id);
   g.start("restaurant");
-  if (phase === "briefing") return g.buildSnapshot(ids[0], false);
+  if (phase === "briefing") { g.setPhase("briefing"); return g.buildSnapshot(ids[0], false); }
 
   g.setPhase("discussion");
   const npcId = g.scenario()!.npcs![0].id;

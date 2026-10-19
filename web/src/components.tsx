@@ -118,7 +118,7 @@ export function SoundToggle() {
 // ---- フェーズ表示 ----
 
 export function PhaseStepper({ phase }: { phase: Phase }) {
-  const idx = phaseIndex(phase);
+  const idx = phaseIndex((phase === "voting" || phase === "briefing") ? "discussion" : phase);
   return (
     <div className="stepper">
       {PHASES.map((p, i) => (
@@ -500,7 +500,13 @@ export function QuestionLog({
 
 // ---- シナリオ表示 ----
 
-export function ScenarioPanel({ sc }: { sc: ScenarioView }) {
+function ScenarioSection({ title, collapsible, children }: { title: string; collapsible: boolean; children: React.ReactNode }) {
+  return collapsible
+    ? <details className="scenario-section"><summary>{title}</summary><div>{children}</div></details>
+    : <><h4>{title}</h4>{children}</>;
+}
+
+export function ScenarioPanel({ sc, collapsible = false, showRubric = true }: { sc: ScenarioView; collapsible?: boolean; showRubric?: boolean }) {
   return (
     <div className="card">
       <div className="scenario-head">
@@ -517,17 +523,21 @@ export function ScenarioPanel({ sc }: { sc: ScenarioView }) {
           </p>
         )}
       </div>
-      <h4>背景</h4>
+      {collapsible && <h3>お題・参考情報</h3>}
+      <ScenarioSection title="背景" collapsible={collapsible}>
       <p className="prewrap">{sc.background}</p>
-      <h4>プロジェクトの公式ゴール</h4>
+      </ScenarioSection>
+      <ScenarioSection title="プロジェクトの公式ゴール" collapsible={collapsible}>
       <p className="prewrap goal">{sc.publicGoal}</p>
-      <h4>制約条件</h4>
+      </ScenarioSection>
+      <ScenarioSection title="制約条件" collapsible={collapsible}>
       <ul>
         {sc.constraints.map((c, i) => (
           <li key={i}>{c}</li>
         ))}
       </ul>
-      <h4>{sc.type === "hearing" ? "開発チームの担当分け" : "登場するステークホルダー"}</h4>
+      </ScenarioSection>
+      <ScenarioSection title={sc.type === "hearing" ? "開発チームの担当分け" : "登場するステークホルダー"} collapsible={collapsible}>
       <div className="role-grid">
         {sc.roles.map((r) => (
           <div key={r.id} className="role-mini">
@@ -542,9 +552,9 @@ export function ScenarioPanel({ sc }: { sc: ScenarioView }) {
           </div>
         ))}
       </div>
+      </ScenarioSection>
       {sc.npcs && sc.npcs.length > 0 && (
-        <>
-          <h4>🎤 ヒアリング対象(ホストが演じます)</h4>
+        <ScenarioSection title="ヒアリング対象(ホストが演じます)" collapsible={collapsible}>
           <p className="small muted">
             聞かれていないことは基本的に話しません。良い質問が隠れた事情を掘り当てます。
           </p>
@@ -562,11 +572,10 @@ export function ScenarioPanel({ sc }: { sc: ScenarioView }) {
               </div>
             ))}
           </div>
-        </>
+        </ScenarioSection>
       )}
-      {sc.rubric && sc.rubric.length > 0 && (
-        <>
-          <h4>採点基準(公開)</h4>
+      {showRubric && sc.rubric && sc.rubric.length > 0 && (
+        <ScenarioSection title="採点基準(公開)" collapsible={collapsible}>
           <ul className="small">
             {sc.rubric.map((r) => (
               <li key={r.name}>
@@ -577,7 +586,7 @@ export function ScenarioPanel({ sc }: { sc: ScenarioView }) {
               </li>
             ))}
           </ul>
-        </>
+        </ScenarioSection>
       )}
     </div>
   );
@@ -680,7 +689,7 @@ export function buildDocMarkdown(state: Snapshot): string {
     lines.push(s.content.trim() || "(未記入)");
     lines.push("");
   }
-  lines.push(`## 合意された要求一覧`);
+  if (state.proposals.some((p) => p.status === "adopted")) lines.push(`## 合意された要求一覧`);
   const adopted = state.proposals.filter((p) => p.status === "adopted");
   const cats = sc?.categories ?? [];
   const order = [...cats, ...adopted.map((p) => p.category).filter((c) => !cats.includes(c))];
@@ -711,7 +720,7 @@ export function DocView({ state }: { state: Snapshot }) {
           <p className="prewrap">{s.content.trim() || <span className="muted">(未記入)</span>}</p>
         </section>
       ))}
-      <section>
+      {adopted.length > 0 && <section>
         <h4>合意された要求一覧</h4>
         {adopted.length === 0 && <p className="muted">(まだありません)</p>}
         {cats.map((cat) => {
@@ -732,7 +741,7 @@ export function DocView({ state }: { state: Snapshot }) {
             </div>
           );
         })}
-      </section>
+      </section>}
     </div>
   );
 }
@@ -872,13 +881,13 @@ export function ResultsView({ state, send }: { state: Snapshot; send?: (m: Clien
       <h3 className="section-title">🧭 振り返り</h3>
       <div className="card retrospective-card">
         <p className="small muted">
-          得点だけでなく、どんな質問・要求・判断が結果につながったかをチームで確認しましょう。
+          得点だけでなく、どんな質問と仕様が結果につながったかをチームで確認しましょう。
         </p>
         <h4>判断の足跡</h4>
         <ul className="small">
           {playerRetrospectives.map((player) => (
             <li key={player.playerId}>
-              <strong>{player.name}</strong>: 質問 {player.questions}件 / 要求カード {player.proposals}件(採用 {player.adopted}件)
+              <strong>{player.name}</strong>: 質問 {player.questions}件
               {player.secretScore !== undefined && (
                 <span> / 個人目標 {player.secretScore}/{player.secretMax}点</span>
               )}
@@ -898,7 +907,7 @@ export function ResultsView({ state, send }: { state: Snapshot; send?: (m: Clien
             ))}
           </ul>
         ) : (
-          <p className="small muted">質問・採用要求・仕様書の記録はありません。</p>
+          <p className="small muted">質問・仕様書の記録はありません。</p>
         )}
 
         {score?.hiddenReqs && score.hiddenReqs.some((req) => !req.discovered) && (
@@ -1105,6 +1114,7 @@ export function DocEditor({
   state,
   send,
   heading,
+  focused = false,
   roomId,
   serverNow,
   lastError,
@@ -1112,10 +1122,13 @@ export function DocEditor({
   state: Snapshot;
   send: (m: ClientMessage) => void;
   heading?: string;
+  focused?: boolean;
   roomId?: string; // ホストが対象ルームを指定する場合
   serverNow?: () => number;
   lastError?: string | null;
 }) {
+  const [activeSection, setActiveSection] = useState(state.doc[0]?.id);
+  const selectedSection = state.doc.some((s) => s.id === activeSection) ? activeSection : state.doc[0]?.id;
   const connected = usePlayerConnected();
   const localDraft = useTabDraft(`doc:${roomId ?? state.myRoomId}:${state.myPlayerId ?? "host"}`);
   const [restored] = useState(() => restoreDocumentDraft(localDraft.value, state.doc));
@@ -1232,14 +1245,15 @@ export function DocEditor({
   const blank = state.doc.filter((s) => !s.content.trim()).length;
 
   return (
-    <div className="card doc-editor print-document">
+    <div className={`card doc-editor print-document${focused ? " doc-focused" : ""}`}>
       <div className="doc-editor-head">
         <h3>
-          {heading ?? "📄 要件定義書エディタ"}
+          {heading ?? "仕様書"}
           {blank > 0 && (
             <span className="blank-count">未記入 {blank}/{state.doc.length}</span>
           )}
         </h3>
+        {!focused && <details className="doc-export"><summary>出力</summary><div>
         <button
           className="ghost"
           onClick={async () => {
@@ -1276,23 +1290,29 @@ export function DocEditor({
         <button className="ghost" onClick={() => window.print()} aria-label="要件定義書を印刷">
           🖨 印刷
         </button>
+        </div></details>}
       </div>
+      <div className="doc-notices">
+      <p className="small muted doc-help">
+        自動保存されます。チームで担当を分けて記入してください。
+      </p>
       {Object.keys(restored.drafts).length > 0 && Object.keys(drafts).length > 0 && <p className="small warn-text" role="status">未保存の仕様書を復元しました。内容を確認して再保存してください。</p>}
       {localDraft.error && <p className="small error-text" role="status">下書きをブラウザに保存できません。共有の保存が終わるまで画面を閉じないでください。</p>}
       {copyError && <p role="alert" className="error-text">コピーできませんでした。「Markdownを保存」でファイルをダウンロードできます。</p>}
       {Object.keys(drafts).length > 0 && <p className="small muted">出力には、この画面の最新の入力を含みます。チームには、各項目が「保存済み」になってから共有されます。</p>}
+      </div>
       <nav className="doc-index" aria-label="仕様書の項目へ移動">
         {state.doc.map((section) => (
-          <button key={section.id} className="ghost small-btn" onClick={() => {
-            const field = document.getElementById(`doc-section-${section.id}`);
-            field?.scrollIntoView({ block: "center" });
-            field?.focus({ preventScroll: true });
+          <button key={section.id} className="ghost small-btn" aria-pressed={focused ? section.id === selectedSection : undefined} onClick={() => {
+            setActiveSection(section.id);
+            requestAnimationFrame(() => {
+              const field = document.getElementById(`doc-section-${section.id}`);
+              if (!focused) field?.scrollIntoView({ block: "center" });
+              field?.focus({ preventScroll: true });
+            });
           }}>{section.title}<span>{(drafts[section.id] ?? section.content).trim() ? "記入済み" : "未記入"}</span></button>
         ))}
       </nav>
-      <p className="small muted">
-        全員で同時に編集できます。同じ欄を同時に書くと上書きされるので、担当を分けましょう(誰かが書いている欄には ✏️ が出ます)。「合意された要求一覧」は採用済みカードから自動で挿入されます。
-      </p>
       {state.doc.map((s) => {
         const now = serverNow ? serverNow() : Date.now();
         const myEditorName = state.isHost ? "ホスト" : state.players.find((p) => p.id === state.myPlayerId)?.name;
@@ -1302,7 +1322,7 @@ export function DocEditor({
           now - s.editedAtMs < 10000 &&
           !(s.id in drafts); // 自分が編集中の欄には出さない
         return (
-          <div key={s.id} className="doc-section-edit">
+          <div key={s.id} className={`doc-section-edit${focused && s.id !== selectedSection ? " doc-section-inactive" : ""}`}>
             <h4>
               {s.title}
               {s.id in drafts && <span className="editing-badge">✏️ 自分が編集中</span>}
@@ -1387,8 +1407,7 @@ export function DocEditor({
           </div>
         );
       })}
-      <h4>合意された要求一覧(自動)</h4>
-      <DocView state={{ ...state, doc: [] }} />
+      {state.proposals.some((p) => p.status === "adopted") && <DocView state={{ ...state, doc: [] }} />}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useTabDraft, DraftNotice } from "./useTabDraft";
 import { useRecordFilter } from "./RecordFilter";
 import { useEffect, useState } from "react";
 import { Workspace } from "./Workspace";
+import { ProductIdentity, SessionHeading } from "./ProductIdentity";
 import type { AIKind, HostConn, PromptOpts } from "./useGame";
 import { aiEnabled, checkCodexBridge } from "./ai/client";
 import type { ClientMessage } from "./game/protocol";
@@ -11,16 +12,13 @@ import { roomAttention, sortRoomsByAttention } from "./game/roomAttention";
 import { phaseTimerPreset, timerMode, TIMER_PRESETS } from "./game/timerPresets";
 import { phaseTransitionConfirmation, phaseTransitionInfo } from "./game/phaseTransition";
 import {
-  AnnouncementLog,
   AnnouncementToasts,
   ConnBadge,
   DocEditor,
   ErrorToast,
   Leaderboard,
-  ProposalCard,
   QuestionLog,
   ResultsView,
-  RoomComparison,
   ScenarioPanel,
   SoundToggle,
   TimerDisplay,
@@ -80,7 +78,7 @@ export default function HostApp({ conn }: { conn: HostConn }) {
   return (
     <div className="app host-app">
       <header className="topbar">
-        <div className="brand">🎛 ホストコンソール</div>
+        <ProductIdentity host />
         <TimerDisplay timer={state.timer} serverNow={serverNow} />
         <div className="topbar-right">
           <span className="room-code-chip" title="プレイヤーが入力するルームコード">
@@ -100,6 +98,7 @@ export default function HostApp({ conn }: { conn: HostConn }) {
       )}
       <HostPhaseControls state={state} send={send} serverNow={serverNow} />
       <main className="content wide">
+        <SessionHeading state={state} host />
         <HostCockpit state={state} serverNow={serverNow} onSelectRoom={setSelectedRoomId} />
         {state.phase !== "lobby" && rooms.length > 0 && (
           <RoomTabs
@@ -265,7 +264,7 @@ function HostPhaseControls({
   send: (m: ClientMessage) => void;
   serverNow: () => number;
 }) {
-  const idx = phaseIndex(state.phase);
+  const idx = phaseIndex((state.phase === "voting" || state.phase === "briefing") ? "discussion" : state.phase);
   const moveTo = (target: Phase, forceConfirm = false) => {
     if (target === state.phase) return;
     const info = phaseTransitionInfo(state, target);
@@ -431,7 +430,7 @@ function RoomTabs({
             key={r.id}
             className={"room-tab" + (r.id === activeId ? " room-tab-active" : "")}
             onClick={() => onSelect(r.id)}
-            title={`要求カード ${r.proposals.length}件 / 質問 ${r.questions.length}件`}
+            title={`質問 ${r.questions.length}件`}
           >
             🚪 {r.name}
             <span className={`room-tab-attention room-tab-attention-${attention.level}`}>
@@ -468,38 +467,18 @@ function HostPhaseContent({
     case "lobby":
       return <HostLobby conn={conn} state={state} send={send} />;
     case "briefing":
-      return (
-        <div className="cols">
-          <div>
-            <AskQueuePanel conn={conn} state={state} send={send} />
-            <HostRoleOverview state={scoped} />
-            <NPCReference conn={conn} state={state} />
-          </div>
-          <div>{state.scenario && <ScenarioPanel sc={state.scenario} />}</div>
-        </div>
-      );
     case "discussion":
       return (
         <Workspace label="管理者の作業" items={[
           { id: "questions", label: "質問に回答", description: "全ルームの未回答を処理", badge: state.askQueue?.length, content: <>
             <AskQueuePanel conn={conn} state={state} send={send} />
-            {!(state.scenario?.npcs?.length) && <div className="card"><h3>チームの議論を見守りましょう</h3><p>このシナリオでは参加者同士でヒアリングします。「ルームの成果物」から要求カードと仕様書を確認できます。</p></div>}
+            {!(state.scenario?.npcs?.length) && <div className="card"><h3>チームの議論を見守りましょう</h3><p>このシナリオでは参加者同士でヒアリングします。「ルームの成果物」から仕様書を確認できます。</p></div>}
             <NPCReference conn={conn} state={state} />
           </> },
-          { id: "room", label: "ルームの成果物", description: `${room?.name ?? "選択中ルーム"}の要求・仕様書`, content: <div key={room?.id}>
-            <HostProposalBoard key={room?.id} state={scoped} send={send} />
+          { id: "room", label: "ルームの成果物", description: `${room?.name ?? "選択中ルーム"}の仕様書`, content: <div key={room?.id}>
             <DocEditor state={scoped} send={send} roomId={room?.id} serverNow={conn.serverNow} lastError={conn.lastError} />
             <QuestionLog questions={scoped.questions} heading={`📒 ${room?.name ?? ""}のヒアリング記録(${scoped.questions.length})`} />
           </div> },
-          { id: "facilitation", label: "進行・イベント", description: "ヒント・台本・全員への連絡", content: <div className="cols"><div>
-            <ScriptedEventsPanel state={state} send={send} />
-            <AnnounceForm state={state} send={send} />
-            <AnnouncementLog items={state.announcements} />
-          </div><div>
-            <FacilitationPanel state={state} />
-            <CausalChainPanel state={state} />
-            <AIPanel conn={conn} state={state} kinds={["event", "advice"]} roomId={room?.id} />
-          </div></div> },
           { id: "reference", label: "ホスト用資料", description: "シナリオ・ロール・隠れ要件", content: <>
             {state.scenario && <ScenarioPanel sc={state.scenario} />}
             <HiddenReqPanel state={state} />
@@ -508,24 +487,7 @@ function HostPhaseContent({
           { id: "settings", label: "AI設定", description: "接続方法・自動回答の準備", content: <AISettings conn={conn} /> },
         ]} />
       );
-    case "voting":
-      return (
-        <div className="cols">
-          <div>
-            <HostProposalBoard key={room?.id} state={scoped} send={send} />
-          </div>
-          <div>
-            <div className="card">
-              <h3>投票の進み具合{room ? `(${room.name})` : ""}</h3>
-              <VoteProgress state={scoped} />
-              <p className="small muted">
-                全ルームの投票が終わったら「次のフェーズへ」。多数決で仮決定され、同数のカードは仕上げフェーズであなたが裁定します。
-              </p>
-            </div>
-            <HostRoleOverview state={scoped} compact />
-          </div>
-        </div>
-      );
+    case "voting": // Compatibility with saved games.
     case "finalize":
       return (
         <div className="cols">
@@ -540,11 +502,10 @@ function HostPhaseContent({
             />
           </div>
           <div>
-            <AIPanel conn={conn} state={state} kinds={["score", "advice"]} roomId={room?.id} />
+            <AIPanel conn={conn} state={state} kinds={["score"]} roomId={room?.id} />
             <AISettings conn={conn} />
             <TestCasePreview state={state} />
             <HiddenReqPanel state={state} />
-            <HostProposalBoard key={room?.id} state={scoped} send={send} compact />
           </div>
         </div>
       );
@@ -552,7 +513,6 @@ function HostPhaseContent({
       return (
         <div>
           <Leaderboard state={state} highlightRoomId={room?.id} />
-          <RoomComparison state={state} />
           {!scoped.score && (
             <AIPanel conn={conn} state={state} kinds={["score"]} roomId={room?.id} />
           )}
@@ -925,231 +885,6 @@ function HostRoleOverview({ state, compact }: { state: Snapshot; compact?: boole
 
 // ---- 提案ボード ----
 
-function HostProposalBoard({
-  state,
-  send,
-  compact,
-}: {
-  state: Snapshot;
-  send: (m: ClientMessage) => void;
-  compact?: boolean;
-}) {
-  const { shown, controls } = useRecordFilter({
-    items: state.proposals, label: "要求カード",
-    fields: (p) => [p.title, p.description, p.authorName, p.category],
-    facets: [{ label: "カテゴリ", value: (p) => p.category },
-      { label: "裁定", value: (p) => p.status === "adopted" ? "採用" : p.status === "rejected" ? "却下" : "審議中" }],
-  });
-  return (
-    <div className="card">
-      <h3>要求カード({state.proposals.length})</h3>
-      {state.proposals.length === 0 && <p className="muted">まだ提出されていません</p>}
-      {state.proposals.length > 0 && controls}
-      {shown.map((p) => (
-        <ProposalCard key={p.id} p={p} phase={state.phase} isMine={false}>
-          <div className="proposal-actions">
-            <span className="small muted">裁定:</span>
-            {(["adopted", "pending", "rejected"] as const).map((s) => (
-              <button
-                key={s}
-                className={
-                  "ghost small-btn" + (p.status === s ? " status-selected" : "")
-                }
-                onClick={() => send({ type: "set_proposal_status", id: p.id, status: s })}
-              >
-                {s === "adopted" ? "採用" : s === "pending" ? "審議中" : "却下"}
-              </button>
-            ))}
-            {!compact && (
-              <button
-                className="ghost small-btn danger"
-                onClick={() => {
-                        if (window.confirm(`「${p.title}」を削除しますか？削除すると元に戻せません。`)) send({ type: "delete_proposal", id: p.id });
-                      }}
-              >
-                削除
-              </button>
-            )}
-          </div>
-        </ProposalCard>
-      ))}
-    </div>
-  );
-}
-
-function VoteProgress({ state }: { state: Snapshot }) {
-  const total = state.proposals.length;
-  const playerCount = state.players.length;
-  const complete = state.proposals.filter((p) => p.votedCount >= playerCount).length;
-  const tied = state.proposals.filter(
-    (p) => p.votedCount >= playerCount && p.approveCount === p.rejectCount,
-  );
-  return (
-    <div>
-      {total > 0 && (
-        <>
-          <div className="bar">
-            <div className="bar-fill" style={{ width: `${(complete / total) * 100}%` }} />
-          </div>
-          <p className="small">
-            {complete}/{total} 件が全員投票済
-            {complete === total && " — このルームは完了です"}
-          </p>
-          {tied.length > 0 && (
-            <p className="small warn-text">
-              ⚖ 同数のカードが{tied.length}件あります(仕上げフェーズであなたが裁定します):
-              {tied.map((p) => p.title).join("・")}
-            </p>
-          )}
-        </>
-      )}
-      <ul className="small">
-        {state.proposals.map((p) => (
-          <li key={p.id} className={p.votedCount >= playerCount ? "muted" : ""}>
-            {p.title}: {p.votedCount}/{playerCount}人 投票済(賛成{p.approveCount}・反対
-            {p.rejectCount})
-            {p.notVoted && p.notVoted.length > 0 && (
-              <span className="muted"> — 未投票: {p.notVoted.join("・")}</span>
-            )}
-          </li>
-        ))}
-        {total === 0 && <li className="muted">要求カードがありません</li>}
-      </ul>
-    </div>
-  );
-}
-
-// ---- 因果チェーン(ホスト専用) ----
-
-function CausalChainPanel({ state }: { state: Snapshot }) {
-  const beats = state.scenario?.beats ?? [];
-  if (beats.length === 0) return null;
-  return (
-    <div className="card causal-chain">
-      <details>
-        <summary>
-          <strong>🔗 因果チェーン({beats.length}場面)</strong>
-        </summary>
-        <p className="small muted">イベントを出す前に、チームの判断とつながる場面を確認してください。</p>
-        {beats.map((beat) => (
-          <div key={beat.id} className="causal-beat">
-            <div className="causal-beat-head">
-              <span className="chip chip-cat">{beat.phase}</span>
-              <strong>{beat.title}</strong>
-            </div>
-            <div className="small"><b>発生条件:</b> {beat.trigger}</div>
-            <div className="small"><b>影響:</b> {beat.impact}</div>
-            <div className="small muted"><b>投げかけ:</b> {beat.facilitatorCue}</div>
-            <div className="small muted"><b>未対応時:</b> {beat.counterfactual}</div>
-          </div>
-        ))}
-      </details>
-    </div>
-  );
-}
-
-// ---- ファシリテーション支援(ホスト専用) ----
-
-function FacilitationPanel({ state }: { state: Snapshot }) {
-  const support = state.scenario?.facilitation;
-  if (!support) return null;
-  return (
-    <div className="card facilitation-panel">
-      <details>
-        <summary><strong>🗣 ファシリ進行メモ</strong></summary>
-        <h4>開始前の読み上げ(30秒)</h4>
-        <p className="small prewrap">{support.opening30}</p>
-        <h4>開始前の読み上げ(2分)</h4>
-        <p className="small prewrap">{support.opening120}</p>
-        <h4>止まったときのヒント</h4>
-        <ol className="small facilitator-hints">
-          {support.hints.map((hint, index) => <li key={index}>{hint}</li>)}
-        </ol>
-        <h4>時間不足時の短縮ルート</h4>
-        <ol className="small">
-          {support.shortRoute.map((step, index) => <li key={index}>{step}</li>)}
-        </ol>
-      </details>
-    </div>
-  );
-}
-
-// ---- お知らせ(イベント)手動投稿 ----
-
-function AnnounceForm({
-  state,
-  send,
-}: {
-  state: Snapshot;
-  send: (m: ClientMessage) => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const ideas = state.scenario?.eventIdeas ?? [];
-  return (
-    <div className="card">
-      <h3>📢 イベントを配信</h3>
-      <p className="small muted">
-        議論に揺さぶりをかける「クライアントからの追加情報」を全員に配信します。
-      </p>
-      <input
-        aria-label="イベントのタイトル"
-        placeholder="タイトル(例: 社長からの緊急連絡)"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-      <textarea
-        aria-label="イベントの本文"
-        placeholder="本文"
-        rows={3}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-      />
-      <button
-        disabled={!title.trim() || !body.trim()}
-        onClick={() => {
-          send({ type: "announce", title: title.trim(), body: body.trim() });
-          setTitle("");
-          setBody("");
-        }}
-      >
-        配信する
-      </button>
-      {ideas.length > 0 && (
-        <details className="ideas">
-          <summary>イベントのネタ帳(シナリオ同梱)</summary>
-          <ul className="small">
-            {ideas.map((idea, i) =>
-              typeof idea === "string" ? (
-                <li key={i}>{idea}</li>
-              ) : (
-                <li key={idea.id}>
-                  <div className="doc-editor-head">
-                    <strong>{idea.title}</strong>
-                    <button
-                      className="ghost small-btn"
-                      onClick={() => {
-                        setTitle(idea.title);
-                        setBody(idea.trigger);
-                      }}
-                    >
-                      下書きに使う
-                    </button>
-                  </div>
-                  <div className="muted">発生条件: {idea.trigger}</div>
-                  <div className="muted">狙い: {idea.intent} / 難易度: {idea.difficulty}</div>
-                </li>
-              ),
-            )}
-          </ul>
-        </details>
-      )}
-    </div>
-  );
-}
-
-// ---- NPCカンペ + AI回答(ヒアリング型) ----
-
 function NPCReference({ conn, state }: { conn: HostConn; state: Snapshot }) {
   const npcs = state.scenario?.npcs ?? [];
   const [npcId, setNpcId] = useState("");
@@ -1407,44 +1142,6 @@ function AnswerRow({
 }
 
 // ---- 固定イベント台本 ----
-
-function ScriptedEventsPanel({
-  state,
-  send,
-}: {
-  state: Snapshot;
-  send: (m: ClientMessage) => void;
-}) {
-  const events = state.scenario?.scriptedEvents ?? [];
-  const [fired, setFired] = useState<Set<string>>(() => new Set());
-  if (events.length === 0) return null;
-  return (
-    <div className="card">
-      <h3>🎬 イベント台本</h3>
-      <p className="small muted">タイミングが来たら配信してください(全員にトースト表示されます)。</p>
-      {events.map((ev) => (
-        <div key={ev.id} className={"scripted-event" + (fired.has(ev.id) ? " fired" : "")}>
-          <div>
-            <span className="chip chip-cat">{ev.timing}</span>
-            <strong>{ev.title}</strong>
-            <p className="small muted prewrap">{ev.body}</p>
-          </div>
-          <button
-            className={fired.has(ev.id) ? "ghost small-btn" : "small-btn"}
-            onClick={() => {
-              send({ type: "announce", title: ev.title, body: ev.body });
-              setFired((prev) => new Set(prev).add(ev.id));
-            }}
-          >
-            {fired.has(ev.id) ? "再配信" : "▶ 配信"}
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ---- 隠れ要件チェックリスト ----
 
 function HiddenReqPanel({ state }: { state: Snapshot }) {
   const reqs = state.scenario?.hiddenRequirements ?? [];

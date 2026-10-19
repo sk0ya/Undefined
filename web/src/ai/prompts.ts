@@ -20,6 +20,10 @@ function docText(g: GameEngine, room: RoomState): string {
     return g.roleById(p.roleId)?.title ?? p.name;
   };
 
+  if (room.proposals.length === 0) {
+    out.push("このゲームでは要求カード・投票は使いません。上記の仕様書を合意内容として採点してください。カードがないことを減点せず、個人目標も仕様書と質問記録から判定してください。");
+    return out.join("\n");
+  }
   out.push("## 合意された要求一覧");
   const adopted = room.proposals.filter((p) => p.status === "adopted");
   if (adopted.length === 0) {

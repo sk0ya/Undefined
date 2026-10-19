@@ -10,10 +10,8 @@ export type Phase =
 
 export const PHASES: { id: Phase; label: string; desc: string }[] = [
   { id: "lobby", label: "ロビー", desc: "参加者の集合を待っています" },
-  { id: "briefing", label: "ブリーフィング", desc: "ロールとシナリオを確認してください" },
-  { id: "discussion", label: "ヒアリング・議論", desc: "議論しながら要求カードを提出してください" },
-  { id: "voting", label: "合意形成(投票)", desc: "各要求カードに賛成/反対を投票してください" },
-  { id: "finalize", label: "要件定義書の仕上げ", desc: "ファシリテーターが文書を仕上げ、AI採点を行います" },
+  { id: "discussion", label: "仕様書を作る", desc: "質問・相談して、決めたことを仕様書に書きます" },
+  { id: "finalize", label: "採点", desc: "ホストが仕様書と個人目標を採点します" },
   { id: "results", label: "結果発表", desc: "秘密の勝利条件が公開されます" },
 ];
 

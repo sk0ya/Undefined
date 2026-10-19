@@ -17,8 +17,6 @@ function createGame(scenarioId: string) {
   const scenario = game.scenario()!;
   for (const room of game.rooms) {
     const playerId = room.playerIds[0];
-    game.propose(playerId, scenario.categories[0] ?? "機能", "例外時にも業務を継続できる", "担当者が状況を確認し、代替手順で対応できるようにする。");
-    game.propose(room.playerIds[1], scenario.categories[0] ?? "機能", "変更履歴を確認する", "誰がいつ変更したかを記録し、チームで共有する。");
     if (scenario.npcs?.length) {
       const q = game.ask(playerId, scenario.npcs[0].id, "忙しい時間帯に困っていることは何ですか？");
       game.answerQuestion(q.id, "複数の依頼が重なると、確認や引き継ぎが追いつかないことがあります。", "host");

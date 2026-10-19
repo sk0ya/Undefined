@@ -40,9 +40,9 @@ export function roomAttention(room: RoomView, phase: Phase): RoomAttention {
     return attention("ready", "全員準備OK", "次のフェーズへ進められます");
   }
 
-  const noActivity = room.questions.length === 0 && room.proposals.length === 0;
+  const noActivity = room.questions.length === 0 && room.proposals.length === 0 && room.doc.every((section) => !section.content.trim());
   if (phase === "discussion" && noActivity) {
-    return attention("stalled", "反応がありません", "質問または要求カードを促してください");
+    return attention("stalled", "反応がありません", "質問や仕様書への記入を促してください");
   }
   if (phase === "voting" && room.proposals.length === 0) {
     return attention("stalled", "投票対象なし", "要求カードがあるか確認してください");

@@ -56,7 +56,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       playerTwoReconnectContext = await browser.newContext({ storageState: playerTwoStorage });
       playerTwo = await playerTwoReconnectContext.newPage();
       await playerTwo.goto(`${baseURL}/#${roomCode}`);
-      await expect(playerTwo.locator(".step.step-active .step-label")).toHaveText("ロビー", { timeout: 30_000 });
+      await expect(playerTwo.getByText("ゲーム開始を待っています")).toBeVisible({ timeout: 30_000 });
       await expect(host.locator(".player-tag.offline")).toHaveCount(0, { timeout: 30_000 });
 
       const selectedScenario = host.locator("button.scenario-item").first();
@@ -64,55 +64,24 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       expect(selectedScenarioId).toBeTruthy();
       await selectedScenario.click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
-      await expect(host.locator(".step.step-active .step-label")).toHaveText("ブリーフィング");
-      await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("ブリーフィング");
-      const phaseGuide = playerOne.locator(".phase-guide");
-      await expect(phaseGuide).toBeVisible();
-      await phaseGuide.getByText("進め方のヒントを表示").click();
-      await expect(phaseGuide.getByText("自分のロール・公開プロフィール・秘密情報を読む")).toBeVisible();
-      await expect(playerOne.getByRole("button", { name: "🎭 あなたのロール" })).toBeVisible();
 
-      await host.getByRole("button", { name: /次のフェーズへ/ }).click();
-      await expect(host.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
-      await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論");
-      await host.getByRole("button", { name: /進行・イベント/ }).click();
-      const eventIdeas = host.locator("details.ideas");
-      await eventIdeas.locator("summary").click();
-      await expect(eventIdeas).toContainText("発生条件:");
-      await expect(eventIdeas).toContainText("狙い:");
-      await expect(eventIdeas).toContainText("難易度:");
-
+      await expect(host.locator(".step.step-active .step-label")).toHaveText("仕様書を作る");
+      await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("仕様書を作る");
       await playerOne.setViewportSize({ width: 390, height: 844 });
       await expect(playerOne.locator(".tabs")).toBeVisible();
       expect(
         await playerOne.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
       ).toBe(true);
       await playerTwo.reload();
-      await expect(playerTwo.locator(".step.step-active .step-label")).toHaveText("ヒアリング・議論", { timeout: 30_000 });
-      await playerOne
-        .locator(".tabs")
-        .getByRole("button", { name: /📝 要求カード/ })
-        .click();
-      await playerOne.getByText("＋ 要求カードを作成", { exact: true }).click();
-      await playerOne.getByPlaceholder(/要求のタイトル/).fill("ブラウザE2Eの要求");
-      await playerOne.getByRole("button", { name: "提出する" }).click();
-      await expect(playerOne.getByText("ブラウザE2Eの要求")).toBeVisible();
-      await expect(playerOne.getByRole("button", { name: /📝 要求カード.*自分の提出 1/ })).toBeVisible();
-
-      await playerTwo.locator(".tabs").getByRole("button", { name: /📝 要求カード/ }).click();
-      await playerTwo.getByText("＋ 要求カードを作成", { exact: true }).click();
-      await playerTwo.getByPlaceholder(/要求のタイトル/).fill("他メンバーからの要求");
-      await playerTwo.getByRole("button", { name: "提出する" }).click();
-      await expect(playerOne.getByText("他メンバーからの要求")).toBeVisible();
-      await expect(playerOne.getByRole("button", { name: /📝 要求カード.*新着 1.*自分の提出 1/ })).toBeVisible();
-      await playerOne.locator(".tabs").getByRole("button", { name: /📄 仕様書/ }).click();
-      await expect(playerOne.getByRole("button", { name: "要件定義書を印刷" })).toBeVisible();
+      await expect(playerTwo.locator(".step.step-active .step-label")).toHaveText("仕様書を作る", { timeout: 30_000 });
+      await playerOne.locator(".tabs").getByRole("button", { name: "仕様書", exact: true }).click();
+      await playerTwo.locator(".tabs").getByRole("button", { name: "仕様書", exact: true }).click();
+      await expect(playerOne.locator(".doc-export")).toHaveCount(0);
       const firstDocSection = playerOne.locator(".doc-section-edit").first();
       const firstDocField = firstDocSection.locator("textarea");
       const firstDocTitle = (await firstDocSection.locator("h4").innerText()).trim();
       await expect(firstDocTitle).toMatch(/^\d+\./);
       await expect(firstDocField).toHaveAccessibleName(firstDocTitle);
-      await playerTwo.locator(".tabs").getByRole("button", { name: /📄 仕様書/ }).click();
       const secondDocSection = playerTwo.locator(".doc-section-edit").first();
       await expect(secondDocSection).toBeVisible();
       await playerOne.evaluate(() => {
@@ -140,37 +109,20 @@ test.describe("ゲームの主要ブラウザフロー", () => {
       await expect(firstDocField).toHaveValue("プレイヤー2の保存内容");
       await firstDocField.fill("ブラウザE2Eで保存状態を確認");
       await expect(firstDocSection.getByText(/✓ 保存済み/)).toBeVisible({ timeout: 5_000 });
-      const downloadPromise = playerOne.waitForEvent("download");
-      await playerOne.getByRole("button", { name: "Markdownを保存" }).click();
-      const download = await downloadPromise;
-      expect(download.suggestedFilename()).toBe(`requirements-${selectedScenarioId}.md`);
       await playerOne.emulateMedia({ media: "print" });
       await expect(playerOne.locator(".doc-editor")).toBeVisible();
       await expect(playerOne.locator(".topbar")).toBeHidden();
       await expect(playerOne.locator(".phase-guide")).toBeHidden();
       await playerOne.emulateMedia({ media: "screen" });
-      await playerOne.locator(".tabs").getByRole("button", { name: /📝 要求カード/ }).click();
-
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
-      await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("合意形成(投票)");
-      await expect(playerTwo.locator(".step.step-active .step-label")).toHaveText("合意形成(投票)");
-
-      for (const player of [playerOne, playerTwo]) {
-        await player.getByRole("button", { name: /🗳 投票/ }).click();
-        const approveButtons = player.getByRole("button", { name: "👍 採用に賛成" });
-        await approveButtons.nth(0).click();
-        await approveButtons.nth(1).click();
-      }
-
-      await host.getByRole("button", { name: /次のフェーズへ/ }).click();
-      await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("要件定義書の仕上げ");
+      await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("採点");
 
       await host.getByRole("button", { name: /次のフェーズへ/ }).click();
       await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
       await expect(playerOne.locator(".step.step-active .step-label")).toHaveText("結果発表");
       await expect(playerTwo.locator(".step.step-active .step-label")).toHaveText("結果発表");
       await expect(host.getByText("判断材料として残った記録")).toBeVisible();
-      await expect(host.getByText("プレイヤー1: 質問 0件 / 要求カード 1件(採用 1件)")).toBeVisible();
+      await expect(host.getByText("プレイヤー1: 質問 0件")).toBeVisible();
 
       await host.reload();
       await expect(host.locator(".restore-notice")).toBeVisible({ timeout: 30_000 });
@@ -254,10 +206,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
 
       await host.locator("button.scenario-item").first().click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
-      await expect(host.locator(".step.step-active .step-label")).toHaveText("ブリーフィング");
+      await expect(host.locator(".step.step-active .step-label")).toHaveText("仕様書を作る");
 
       await host.locator(".stepper button").filter({ hasText: "結果発表" }).click();
-      expect(confirmation).toContain("ヒアリング・議論・合意形成(投票)・要件定義書の仕上げをスキップ");
+      expect(confirmation).toContain("採点をスキップ");
       expect(confirmation).toContain("タイマーをクリアします");
       expect(confirmation).toContain("全員の準備OKをリセットします");
       await expect(host.locator(".step.step-active .step-label")).toHaveText("結果発表");
@@ -304,7 +256,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
 
       await host.locator("button.scenario-item").first().click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
-      for (const phase of ["ヒアリング・議論", "合意形成(投票)", "要件定義書の仕上げ", "結果発表"]) {
+      for (const phase of ["採点", "結果発表"]) {
         await host.getByRole("button", { name: /次のフェーズへ/ }).click();
         await expect(host.locator(".step.step-active .step-label")).toHaveText(phase);
       }
@@ -342,10 +294,10 @@ test.describe("ゲームの主要ブラウザフロー", () => {
 
       await host.locator("button.scenario-item").first().click();
       await host.getByRole("button", { name: /ゲーム開始/ }).click();
-      for (const phase of ["ヒアリング・議論", "合意形成(投票)", "要件定義書の仕上げ", "結果発表"]) {
+      for (const phase of ["採点", "結果発表"]) {
         await host.getByRole("button", { name: /次のフェーズへ/ }).click();
         await expect(host.locator(".step.step-active .step-label")).toHaveText(phase);
-        if (phase === "要件定義書の仕上げ") {
+        if (phase === "採点") {
           const firstRoom = (await host.locator(".room-tab-active").textContent())!;
           await host.locator(".doc-section-edit textarea").first().fill("このルーム専用の仕様");
           await expect(host.locator(".doc-section-edit").first().getByText(/✓ 保存済み/)).toBeVisible();
@@ -358,8 +310,7 @@ test.describe("ゲームの主要ブラウザフロー", () => {
           await expect(host.locator(".doc-section-edit textarea").first()).toHaveValue("このルーム専用の仕様");
         }
       }
-      await expect(host.locator(".room-comparison")).toBeVisible();
-      await expect(host.locator(".room-comparison-item")).toHaveCount(2);
+      await expect(host.locator(".room-tab")).toHaveCount(2);
       await expect(host.locator(".cockpit-room")).toHaveCount(2);
       const firstCockpitRoom = host.locator(".cockpit-room").first();
       const firstRoomName = await firstCockpitRoom.locator("strong").innerText();
@@ -380,7 +331,7 @@ async function joinAs(page: Page, roomCode: string, name: string, baseURL?: stri
   await expect(page.getByPlaceholder("あなたの名前(ニックネーム可)")).toBeVisible({ timeout: 30_000 });
   await page.getByPlaceholder("あなたの名前(ニックネーム可)").fill(name);
   await page.getByRole("button", { name: "参加する" }).click();
-  await expect(page.locator(".step.step-active .step-label")).toHaveText("ロビー", { timeout: 30_000 });
+  await expect(page.getByText("ゲーム開始を待っています")).toBeVisible({ timeout: 30_000 });
 }
 
 async function joinAll(pages: Page[], roomCode: string, namePrefix: string, baseURL?: string) {

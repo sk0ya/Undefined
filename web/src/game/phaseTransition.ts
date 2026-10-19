@@ -13,7 +13,7 @@ export interface PhaseTransitionInfo {
  */
 export function phaseTransitionInfo(state: Snapshot, target: Phase): PhaseTransitionInfo {
   const from = state.phase;
-  const fromIndex = phaseIndex(from);
+  const fromIndex = phaseIndex((from === "voting" || from === "briefing") ? "discussion" : from);
   const targetIndex = phaseIndex(target);
   const impacts: string[] = [];
   const warnings: string[] = [];

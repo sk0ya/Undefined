@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("送信が届かない場合も下書きを保持し、削除をキャンセルできる", async ({ browser, baseURL }) => {
+test("質問の送信が届かない場合も下書きを保持し、再送できる", async ({ browser, baseURL }) => {
   test.setTimeout(120000);
   const hc = await browser.newContext();
   const pc = await browser.newContext();
@@ -31,31 +31,7 @@ test("送信が届かない場合も下書きを保持し、削除をキャン�
     await expect(host.locator(".player-tag")).toHaveCount(2, { timeout: 30000 });
     await host.locator('[data-scenario-id="restaurant"]').click();
     await host.getByRole("button", { name: /ゲーム開始/ }).click();
-    await host.getByRole("button", { name: /次のフェーズへ/ }).click();
-    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
-    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
-    const title = player.getByLabel("要求カードのタイトル", { exact: true });
-    await title.fill("消えてはいけない要求");
-    await drop(true);
-    await player.getByRole("button", { name: "提出する", exact: true }).click();
-    await expect(title).toBeDisabled();
-    await expect(title).toHaveValue("消えてはいけない要求");
-    await expect(player.getByText(/送信を確認できませんでした/)).toBeVisible({ timeout: 18000 });
-    await expect(title).toBeEnabled();
-    await player.reload();
-    await player.locator(".tabs").getByRole("button", { name: /要求カード/ }).click();
-    await player.getByText("＋ 要求カードを作成", { exact: true }).click();
-    await expect(title).toHaveValue("消えてはいけない要求", { timeout: 30000 });
-    await player.getByRole("button", { name: "提出する", exact: true }).click();
-    await expect(title).toHaveValue("");
-    await expect(player.locator(".proposal")).toHaveCount(1);
-    player.once("dialog", d => { expect(d.message()).toContain("消えてはいけない要求"); void d.dismiss(); });
-    await player.getByRole("button", { name: "削除", exact: true }).click();
-    await expect(player.locator(".proposal")).toHaveCount(1);
-    player.once("dialog", d => void d.accept());
-    await player.getByRole("button", { name: "削除", exact: true }).click();
-    await expect(player.locator(".proposal")).toHaveCount(0);
-    await player.locator(".tabs").getByRole("button", { name: /ヒアリング/ }).click();
+    await player.locator(".tabs").getByRole("button", { name: "質問", exact: true }).click();
     const question = player.getByLabel("NPCへの質問");
     await question.fill("予約の例外はありますか？");
     await drop(true);
