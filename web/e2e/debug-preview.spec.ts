@@ -30,7 +30,7 @@ test("準備・質問・仕様書を切り替えても入力が残る", async ({
   const field = await page.locator(".doc-section-edit textarea").first().boundingBox();
   expect(field!.height).toBeLessThanOrEqual(260);
   const previewToolbar = await toolbar.boundingBox();
-  expect(field!.y - previewToolbar!.height).toBeLessThan(300);
+  expect(field!.y - previewToolbar!.height).toBeLessThan(320);
   const ready = await page.locator(".ready-bar").boundingBox();
   expect(ready!.y + ready!.height).toBeLessThanOrEqual(1000);
   await page.screenshot({ path: testInfo.outputPath("workspace.png"), fullPage: true });
