@@ -4,3 +4,5 @@ web/*.tsbuildinfo
 web/test-results/
 web/playwright-report/
 *.log
+web/test-results-*/
+web/ui-preview-*.png
