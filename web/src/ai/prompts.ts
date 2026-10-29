@@ -130,7 +130,7 @@ export function buildScorePrompt(g: GameEngine, roomId: string): string {
       const p = g.players[q.askerId];
       const asker = p ? `${p.name}(playerId: ${p.id})` : "不明";
       if (p) counts[p.id] = (counts[p.id] ?? 0) + 1;
-      const npcName = g.npcById(q.npcId)?.name ?? q.npcId;
+      const npcName = g.npcById(q.npcId)?.name ?? (q.npcId || "ホスト");
       b.push(`- ${asker} →【${npcName}】${oneLine(q.text)}`);
       if (q.answer) b.push(`  ↳ 回答: ${oneLine(q.answer)}`);
     }
@@ -161,7 +161,7 @@ export function buildScorePrompt(g: GameEngine, roomId: string): string {
 
   if (sc.hiddenRequirements?.length) {
     b.push("# 隠れ要件(プレイヤーが発見・考慮すべきだったもの)");
-    b.push("最終成果物に反映(発見)されているかを判定してください。");
+    b.push("発見されたかを判定してください。判定基準があればそれを優先し、なければ最終成果物に反映されているかで判定します。");
     for (const hr of sc.hiddenRequirements) {
       b.push(`- id: ${hr.id} / ${hr.text} / 判定基準: ${hr.judgeHint}`);
     }
@@ -171,7 +171,7 @@ export function buildScorePrompt(g: GameEngine, roomId: string): string {
   if (sc.testCases?.length) {
     b.push("# 実運用テストケース");
     b.push(
-      "最終成果物の仕様どおりにシステムと店舗運用が動いたと仮定して、各ケースをシミュレーションし、問題なく処理できるか判定してください(ok=対応済 / partial=一部考慮 / fail=事故になる)。",
+      "最終成果物の仕様どおりにシステムと現場の運用が動いたと仮定して、各ケースをシミュレーションし、問題なく処理できるか判定してください(ok=対応済 / partial=一部考慮 / fail=事故になる)。",
     );
     for (const tc of sc.testCases) {
       b.push(`- id: ${tc.id} / ${tc.title}: ${oneLine(tc.situation)} / チェック: ${tc.checkPoint}`);

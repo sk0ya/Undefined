@@ -19,11 +19,11 @@ test("準備・質問・仕様書を切り替えても入力が残る", async ({
   await index.getByRole("button").first().click();
   await expect(page.locator(".doc-section-edit textarea").first()).toHaveValue("秘密の目標を確認しながら記入");
   await reference.getByRole("button", { name: "質問", exact: true }).click();
-  await page.getByText("＋ NPCに質問する", { exact: true }).click();
-  await page.getByLabel("NPCへの質問", { exact: true }).fill("切り替えても残る質問");
+  await page.getByText("＋ 質問する", { exact: true }).click();
+  await page.getByLabel("質問内容", { exact: true }).fill("切り替えても残る質問");
   await reference.getByRole("button", { name: "準備", exact: true }).click();
   await reference.getByRole("button", { name: "質問", exact: true }).click();
-  await expect(page.getByLabel("NPCへの質問", { exact: true })).toHaveValue("切り替えても残る質問");
+  await expect(page.getByLabel("質問内容", { exact: true })).toHaveValue("切り替えても残る質問");
   await expect(page.locator(".doc-focused")).toBeHidden();
   await reference.getByRole("button", { name: "仕様書", exact: true }).click();
   await expect(page.locator(".doc-section-edit textarea").first()).toHaveValue("秘密の目標を確認しながら記入");
@@ -47,7 +47,16 @@ test("準備・質問・仕様書を切り替えても入力が残る", async ({
     }
   }
   await toolbar.getByLabel("シナリオ").selectOption("smart-factory");
-  await expect(reference.getByRole("button", { name: "質問", exact: true })).toHaveCount(0);
+  await reference.getByRole("button", { name: "質問", exact: true }).click();
+  await page.getByLabel("質問内容", { exact: true }).fill("ホストに進め方を確認したいです");
+  await page.getByRole("button", { name: "質問する", exact: true }).click();
+  await expect(page.locator(".question-workspace")).toContainText("ホストに進め方を確認したいです");
+  await toolbar.getByLabel("視点", { exact: true }).selectOption("host");
+  await page.getByLabel("ホストとしての回答", { exact: true }).fill("資料を確認して相談してください");
+  await page.getByRole("button", { name: "回答を送る", exact: true }).click();
+  await toolbar.getByLabel("視点", { exact: true }).selectOption("player");
+  await reference.getByRole("button", { name: "質問", exact: true }).click();
+  await expect(page.locator(".question-workspace")).toContainText("資料を確認して相談してください");
   await toolbar.getByLabel("視点", { exact: true }).selectOption("join");
   await expect(page.getByRole("heading", { name: "ゲームに参加" })).toBeVisible();
   expect(errors).toEqual([]);

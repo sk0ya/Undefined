@@ -153,6 +153,7 @@ export function applyMessage(
       if (!host) notHost();
       const q = g.findQuestion(m.questionId ?? "");
       if (!q) throw new GameError("質問が見つかりません");
+      if (!q.npcId) throw new GameError("ホスト宛ての質問は手動で回答してください");
       if (!g.aiEnabled) {
         throw new GameError("AIが設定されていません(ホスト画面でAPIキーを設定してください)");
       }

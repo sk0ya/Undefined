@@ -24,11 +24,11 @@ test("再読み込み後に下書きを復元し、質問を絞り込み、仕�
     await host.getByRole("button", { name: /ゲーム開始/ }).click();
     await player.locator(".tabs").getByRole("button", { name: "質問", exact: true }).click();
     await player.locator(".npc-picker").getByRole("button", { name: /常連客/ }).click();
-    await player.getByLabel("NPCへの質問").fill("電話で予約したい理由は何ですか？");
+    await player.getByLabel("質問内容").fill("電話で予約したい理由は何ですか？");
     await player.reload();
     await player.locator(".tabs").getByRole("button", { name: "質問", exact: true }).click();
     await expect(player.locator(".npc-chip-on")).toContainText("常連客");
-    await expect(player.getByLabel("NPCへの質問")).toHaveValue("電話で予約したい理由は何ですか？");
+    await expect(player.getByLabel("質問内容")).toHaveValue("電話で予約したい理由は何ですか？");
     await player.getByRole("button", { name: "質問する", exact: true }).click();
     await expect(host.getByLabel("常連客としての回答")).toBeVisible();
     await host.getByLabel("常連客としての回答").fill("ネットより電話の方が相談しやすいです。");
@@ -40,7 +40,7 @@ test("再読み込み後に下書きを復元し、質問を絞り込み、仕�
     await expect(host.getByLabel("常連客としての回答")).toHaveValue("ネットより電話の方が相談しやすいです。", { timeout: 30000 });
     await host.getByRole("button", { name: "回答を送る", exact: true }).click();
     await expect(player.getByText("ネットより電話の方が相談しやすいです。", { exact: true })).toBeVisible({ timeout: 30000 });
-    await player.getByLabel("NPCへの質問").fill("キャンセルしたいときはどうしていますか？");
+    await player.getByLabel("質問内容").fill("キャンセルしたいときはどうしていますか？");
     await player.getByRole("button", { name: "質問する", exact: true }).click();
     await expect(player.locator(".qa")).toHaveCount(2);
     await player.getByText("ヒアリング記録を検索・絞り込み", { exact: true }).click();

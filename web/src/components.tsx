@@ -346,7 +346,7 @@ export function QuestionBoard({
   send: (m: ClientMessage) => void;
 }) {
   const connected = usePlayerConnected();
-  const npcs = state.scenario?.npcs ?? [];
+  const npcs = [...(state.scenario?.npcs ?? []), { id: "", name: "ホスト", icon: "🎙️", title: "進行役", opening: "お題や進め方について質問できます。" }];
   const [composeOpen, setComposeOpen] = useState(state.questions.length === 0);
   const scope = `${state.myRoomId}:${state.myPlayerId}:question`;
   const npcDraft = useTabDraft(`${scope}:npc`, npcs[0]?.id ?? "");
@@ -371,12 +371,11 @@ export function QuestionBoard({
     send({ type: "ask", npcId: npc.id, text: text.trim() });
   };
 
-  if (npcs.length === 0) return null;
 
   return (
     <fieldset className="question-workspace interaction-fields" disabled={!connected || submission.waiting}>
       <details className="card ask-card compose-disclosure" open={composeOpen} onToggle={(e) => setComposeOpen(e.currentTarget.open)}>
-        <summary>＋ NPCに質問する</summary>
+        <summary>＋ 質問する</summary>
         <div className="doc-editor-head">
           <h3>🎤 ヒアリング</h3>
           <span className="small muted">
@@ -384,7 +383,7 @@ export function QuestionBoard({
           </span>
         </div>
         <p className="small muted">
-          NPCは<strong>聞かれたことだけ</strong>答えます。「なぜ」「例外のときは」「今はどうしている」——
+          ホストへの質問もここから送れます。NPCは<strong>聞かれたことだけ</strong>答えます。「なぜ」「例外のときは」「今はどうしている」——
           具体的に踏み込むほど、隠れた事情が出てきます。
         </p>
         <DraftNotice restored={textDraft.restored} error={textDraft.error || npcDraft.error} />
@@ -404,7 +403,7 @@ export function QuestionBoard({
           ))}
         </div>
         {npc && <p className="npc-opening prewrap">💬 {npc.opening}</p>}
-        <label className="field-label" htmlFor="player-question-input">NPCへの質問</label>
+        <label className="field-label" htmlFor="player-question-input">質問内容</label>
         <textarea
           id="player-question-input"
           rows={2}
@@ -423,7 +422,7 @@ export function QuestionBoard({
           </button>
           <span className="small muted">
             Ctrl+Enterでも送信 ／{" "}
-            {state.autoAnswer ? "AIが即座に答えます" : "ホストが回答します"}
+            {state.autoAnswer && npc?.id ? "AIが即座に答えます" : "ホストが回答します"}
           </span>
         </div>
       </details>

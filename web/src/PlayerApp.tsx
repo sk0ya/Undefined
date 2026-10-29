@@ -197,7 +197,6 @@ function PlayerPhaseContent({
   lastError: string | null;
 }) {
   const hearing = state.scenario?.type === "hearing";
-  const hasNPCs = !!state.scenario?.npcs?.length;
   const document = <DocEditor state={state} send={send} serverNow={serverNow} lastError={lastError} focused />;
   switch (state.phase) {
     case "lobby": return <LobbyView state={state} />;
@@ -217,9 +216,9 @@ function PlayerPhaseContent({
                 <ScenarioPanel sc={state.scenario!} collapsible showRubric={false} />
               </div>
             </div>],
-            ...(hasNPCs ? [["質問", (state.phase === "discussion" || state.phase === "briefing")
+            ["質問", (state.phase === "discussion" || state.phase === "briefing")
               ? <QuestionBoard state={state} send={send} />
-              : <QuestionLog questions={state.questions} />] as Tab] : []),
+              : <QuestionLog questions={state.questions} />],
             ["仕様書", <>{document}<ReadyBar state={state} send={send} label="仕様書の確認完了" /></>],
           ]} />
       </div>
@@ -244,7 +243,7 @@ function LobbyView({ state }: { state: Snapshot }) {
           <div><dt>質問</dt><dd>依頼者や関係者に質問して、必要な情報を集めます。</dd></div>
           <div><dt>仕様書</dt><dd>何を作るか・作らないかを相談し、担当を分けて記入します。</dd></div>
         </dl>
-        <p className="small muted">開始後はタブを自由に行き来できます。質問タブがないお題では、資料をもとに相談してください。</p>
+        <p className="small muted">開始後はタブを自由に行き来できます。質問タブからホストにも質問できます。</p>
         <p className="small muted">最後に仕様書を採点します。チームの得点に加えて、自分だけの秘密の目標にも個人得点があります。</p>
       </div>
       <p className="small muted">参加者 {state.players.length}人</p>

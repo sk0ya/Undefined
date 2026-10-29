@@ -32,7 +32,7 @@ test("質問の送信が届かない場合も下書きを保持し、再送で�
     await host.locator('[data-scenario-id="restaurant"]').click();
     await host.getByRole("button", { name: /ゲーム開始/ }).click();
     await player.locator(".tabs").getByRole("button", { name: "質問", exact: true }).click();
-    const question = player.getByLabel("NPCへの質問");
+    const question = player.getByLabel("質問内容");
     await question.fill("予約の例外はありますか？");
     await drop(true);
     await player.getByRole("button", { name: "質問する", exact: true }).click();

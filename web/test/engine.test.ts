@@ -949,3 +949,25 @@ test("旧準備フェーズの保存データを作成フェーズとして復�
   assert.equal(restored.phase, "discussion");
   assert.deepEqual(asPlayer(restored, ids[0]).scenario?.roles, before.scenario?.roles);
 });
+
+for (const scenario of ["restaurant", "smart-factory"]) {
+  test(`${scenario}: ホストへの質問は手動回答され同じルームに共有される`, () => {
+    const { g, ids } = startGame(["あき", "いつき", "うみ", "えま", "おと"], scenario);
+    g.aiEnabled = true;
+    g.autoAnswer = true;
+    const result = applyMessage(g, { type: "ask", npcId: "", text: "進め方を教えてください" }, { isHost: false, playerId: ids[0] });
+    assert.equal(result.askAI, undefined);
+    const q = asHost(g).askQueue!.find(q => q.text === "進め方を教えてください")!;
+    assert.equal(q.npcName, "ホスト");
+    assert.equal(q.pending, false);
+    assert.throws(() => applyMessage(g, { type: "retry_question", questionId: q.id }, { isHost: true, playerId: "" }), /手動/);
+    applyMessage(g, { type: "answer_question", questionId: q.id, answer: "資料を確認してください" }, { isHost: true, playerId: "" });
+    for (const id of ids) {
+      const view = asPlayer(g, id);
+      const received = view.questions.find(item => item.id === q.id);
+      if (g.roomOf(id) === g.roomOf(ids[0])) assert.equal(received?.answer, "資料を確認してください");
+      else assert.equal(received, undefined);
+    }
+    assert.throws(() => g.ask(ids[0], "invalid-npc", "質問"), /相手/);
+  });
+}

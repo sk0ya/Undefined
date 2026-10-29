@@ -1008,13 +1008,12 @@ function AskQueuePanel({
     items: queue, label: "質問キュー", fields: (q) => [q.text, q.askerName, q.npcName, q.roomName],
     facets: [{ label: "ルーム", value: (q) => q.roomName }, { label: "質問先", value: (q) => q.npcName }],
   });
-  if (!hasNPCs) return null;
 
   return (
     <div className="card ask-queue">
       <div className="doc-editor-head">
         <h3>🎤 質問キュー({queue.length})</h3>
-        <label className="auto-answer-toggle" title={state.aiEnabled ? "" : "APIキーが未設定です(下のAI設定から)"}>
+        {hasNPCs && <label className="auto-answer-toggle" title={state.aiEnabled ? "" : "APIキーが未設定です(下のAI設定から)"}>
           <input
             type="checkbox"
             checked={state.autoAnswer}
@@ -1022,10 +1021,10 @@ function AskQueuePanel({
             onChange={(e) => send({ type: "set_auto_answer", enabled: e.target.checked })}
           />
           AIが自動で答える
-        </label>
+        </label>}
       </div>
       <p className="small muted">
-        {state.autoAnswer
+        {!hasNPCs ? "参加者からの質問に回答すると、そのルーム全員に届きます。" : state.autoAnswer
           ? "AIがNPCになりきって即答します。ホストは口頭ヒアリングの進行に集中できます。"
           : state.aiEnabled
             ? "自動回答はオフです。あなたが回答を書くとそのルームに届きます。"
@@ -1111,9 +1110,9 @@ function AnswerRow({
             <button className="small-btn" disabled={!answer.trim()} onClick={applyPasted}>
               回答を送る
             </button>
-            <button className="ghost small-btn" disabled={busy} onClick={askAI}>
+            {q.npcId && <button className="ghost small-btn" disabled={busy} onClick={askAI}>
               {busy ? "生成中…" : aiEnabled ? "🤖 AIに答えさせる" : "🤖 プロンプトを作る"}
-            </button>
+            </button>}
           </div>
         </>
       )}

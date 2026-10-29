@@ -473,7 +473,8 @@ export class GameEngine {
     if ([...text].length > MAX_QUESTION_LEN) {
       fail(`質問が長すぎます(${MAX_QUESTION_LEN}文字まで)`);
     }
-    if (!this.npcById(npcId)) fail("ヒアリング相手が見つかりません");
+    // 空の宛先はホストへの直接質問。NPC自動回答の対象にはしない。
+    if (npcId !== "" && !this.npcById(npcId)) fail("ヒアリング相手が見つかりません");
     const room = this.roomOf(playerId);
     if (!room) fail("ルームに所属していません");
 
@@ -484,7 +485,7 @@ export class GameEngine {
       text,
       answer: "",
       source: "",
-      pending: this.autoAnswer && this.aiEnabled,
+      pending: npcId !== "" && this.autoAnswer && this.aiEnabled,
       askedAtMs: Date.now(),
       answeredMs: 0,
     };
@@ -676,8 +677,8 @@ export class GameEngine {
     return {
       id: q.id,
       npcId: q.npcId,
-      npcName: npc?.name ?? "",
-      npcIcon: npc?.icon ?? "",
+      npcName: npc?.name ?? (q.npcId === "" ? "ホスト" : ""),
+      npcIcon: npc?.icon ?? (q.npcId === "" ? "🎙️" : ""),
       askerId: q.askerId,
       askerName: asker?.name ?? "",
       askerRole: asker ? (this.roleById(asker.roleId)?.title ?? "") : "",

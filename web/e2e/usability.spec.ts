@@ -38,10 +38,10 @@ test("参加エラーを修正し、下書きを失わず質問・仕様書・�
     await expect(player.locator(".doc-editor")).toBeVisible();
 
     await player.locator(".tabs").getByRole("button", { name: "質問", exact: true }).click();
-    await player.getByLabel("NPCへの質問").fill("電話予約は誰が記録していますか？");
+    await player.getByLabel("質問内容").fill("電話予約は誰が記録していますか？");
     await player.locator(".tabs").getByRole("button", { name: "準備", exact: true }).click();
     await player.locator(".tabs").getByRole("button", { name: "質問", exact: true }).click();
-    await expect(player.getByLabel("NPCへの質問")).toHaveValue("電話予約は誰が記録していますか？");
+    await expect(player.getByLabel("質問内容")).toHaveValue("電話予約は誰が記録していますか？");
     await player.getByRole("button", { name: "質問する", exact: true }).click();
     await expect(host.getByLabel("店長としての回答")).toBeVisible();
     await host.getByLabel("店長としての回答").fill("ホール担当が紙の台帳に記録します。");
